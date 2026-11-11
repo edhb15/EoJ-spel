@@ -6,7 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b0b16">
 
-    <title>Edwards spel</title>
+    <title>Edwards och Johns spel – gratis webbspel</title>
+    <meta name="description" content="Gratis webbspel gjorda av Edward och John. Åk skidor, fly ur omöjliga rum, kör runt i Sverige och spela fotboll mot kompisar – direkt i webbläsaren, ingen nedladdning.">
+    <link rel="canonical" href="https://edhb15.github.io/EoJ-spel/">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+
+    <!-- Link previews (Messenger, Discord, Snapchat, iMessage, X …) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Edwards och Johns spel">
+    <meta property="og:title" content="Edwards och Johns spel">
+    <meta property="og:description" content="Gratis webbspel – spela direkt i webbläsaren. Ingen nedladdning.">
+    <meta property="og:url" content="https://edhb15.github.io/EoJ-spel/">
+    <meta property="og:image" content="https://edhb15.github.io/EoJ-spel/dependencies/share.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="sv_SE">
+    <meta name="twitter:card" content="summary_large_image">
 
     <style>
         /* ---------- General ---------- */
@@ -106,9 +121,10 @@
             animation: fadeIn 0.7s ease both;
         }
 
-        .game-card:nth-child(2) {
-            animation-delay: 0.15s;
-        }
+        .game-card:nth-child(2) { animation-delay: 0.1s; }
+        .game-card:nth-child(3) { animation-delay: 0.2s; }
+        .game-card:nth-child(4) { animation-delay: 0.3s; }
+        .game-card:nth-child(5) { animation-delay: 0.4s; }
 
         .game-card:hover {
             transform: translateY(-9px);
@@ -118,9 +134,75 @@
                 0 0 22px #5ee7ff18;
         }
 
-        .game-card:focus-visible {
+        .card-link {
+            display: block;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .card-link:focus-visible {
             outline: 3px solid var(--blue);
-            outline-offset: 5px;
+            outline-offset: -3px;
+            border-radius: 18px;
+        }
+
+        /* ---------- Share buttons ---------- */
+        .share-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border: 1px solid #ffffff40;
+            border-radius: 999px;
+            background: #0b0b16b0;
+            backdrop-filter: blur(8px);
+            color: var(--text);
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .share-btn:hover,
+        .share-btn:focus-visible {
+            background: #5ee7ff30;
+            border-color: var(--blue);
+            outline: none;
+        }
+
+        .site-share {
+            position: static;
+            margin: 26px auto 0;
+            padding: 11px 20px;
+            font-size: 0.95rem;
+            background: linear-gradient(90deg, #5ee7ff25, #a970ff25);
+        }
+
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            z-index: 10;
+            padding: 12px 20px;
+            border-radius: 12px;
+            background: var(--text);
+            color: var(--background);
+            font-weight: 700;
+            box-shadow: 0 10px 30px #00000070;
+            opacity: 0;
+            transform: translate(-50%, 20px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
         }
 
         .game-preview {
@@ -281,242 +363,251 @@
 
     <header>
         <h1>Edwards och Johns spel</h1>
-        <p>En hemsida med spel skapad av Edward och John</p>
+        <p>Gratis webbspel skapade av Edward och John – spela direkt, ingen nedladdning</p>
         <div class="header-line"></div>
+        <button class="share-btn site-share" type="button" data-share-site>
+            📤 Dela sidan med en kompis
+        </button>
     </header>
 
     <main class="games">
 
-        <!-- Ski to Death -->
-        <article
-            class="game-card"
-            role="link"
-            tabindex="0"
-            aria-label="Spela Ski to Death 3D"
-            onclick="openGame('ski')"
-            onkeydown="handleCardKey(event, 'ski')"
-        >
-            <div class="game-preview">
-                <video
-                    src="https://edhb15.github.io/EoJ-spel/dependencies/Ski-to-death.mov"
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    aria-label="Förhandsvisning av Ski to Death 3D"
-                ></video>
+        <!-- Ski to Death 3D -->
+        <article class="game-card" id="ski">
+            <button class="share-btn" type="button" data-share="games/Ski-to-death-3d/index.html" data-title="Ski to Death 3D" aria-label="Dela Ski to Death 3D">📤 Dela</button>
+            <a class="card-link" href="games/Ski-to-death-3d/index.html" aria-label="Spela Ski to Death 3D">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/Ski-to-death.mp4"
+                        poster="dependencies/previews/Ski-to-death.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
 
-                <div class="preview-overlay">
-                    <div class="play-icon">▶</div>
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="game-info">
-                <span class="game-tag">3D • Action</span>
-                <h2>Ski to Death 3D</h2>
-                <p>
-                    Åk nerför backen och försök att (inte) ta livet av dig!
-                </p>
+                <div class="game-info">
+                    <span class="game-tag">3D • Action</span>
+                    <h2>Ski to Death 3D</h2>
+                    <p>Åk nerför backen och försök att (inte) ta livet av dig!</p>
 
-                <div class="play-button">
-                    <span>Spela nu</span>
-                    <span>→</span>
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
                 </div>
-            </div>
+            </a>
         </article>
 
-        <!-- Impossible Rooms -->
-        <article
-            class="game-card"
-            role="link"
-            tabindex="0"
-            aria-label="Spela Impossible Rooms 3D"
-            onclick="openGame('rooms')"
-            onkeydown="handleCardKey(event, 'rooms')"
-        >
-            <div class="game-preview">
-                <video
-                    src="https://edhb15.github.io/EoJ-spel/dependencies/Impossible-rooms-3d.mov"
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    aria-label="Förhandsvisning av Impossible Rooms 3D"
-                ></video>
+        <!-- Impossible Rooms 3D -->
+        <article class="game-card" id="rooms">
+            <button class="share-btn" type="button" data-share="games/impossible-rooms-3d/index.html" data-title="Impossible Rooms 3D" aria-label="Dela Impossible Rooms 3D">📤 Dela</button>
+            <a class="card-link" href="games/impossible-rooms-3d/index.html" aria-label="Spela Impossible Rooms 3D">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/Impossible-rooms-3d.mp4"
+                        poster="dependencies/previews/Impossible-rooms-3d.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
 
-                <div class="preview-overlay">
-                    <div class="play-icon">▶</div>
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="game-info">
-                <span class="game-tag">3D • Pussel</span>
-                <h2>Impossible Rooms 3D</h2>
-                <p>
-                    Försök att ta dig ut ur olika förvridna rum
-                    i 3D ur ett förstapersonsperspektiv. Lycka till – det kommer du att behöva!
-                </p>
+                <div class="game-info">
+                    <span class="game-tag">3D • Pussel</span>
+                    <h2>Impossible Rooms 3D</h2>
+                    <p>Försök att ta dig ut ur olika förvridna rum i 3D ur ett förstapersonsperspektiv. Lycka till – det kommer du att behöva!</p>
 
-                <div class="play-button">
-                    <span>Spela nu</span>
-                    <span>→</span>
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
                 </div>
-            </div>
+            </a>
         </article>
-        <!-- smita från ledet-->
-        <article
-            class="game-card"
-            role="link"
-            tabindex="0"
-            aria-label="Spela smita från ledet"
-            onclick="openGame('smita')"
-            onkeydown="handleCardKey(event, 'smita')"
-        >
-            <div class="game-preview">
-                <video
-                    src="https://edhb15.github.io/EoJ-spel/dependencies/smita-fran-ledet.mov"
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    aria-label="Förhandsvisning av smita från ledet"
-                ></video>
 
-                <div class="preview-overlay">
-                    <div class="play-icon">▶</div>
+        <!-- Smita från ledet -->
+        <article class="game-card" id="smita">
+            <button class="share-btn" type="button" data-share="games/smita-fran-ledet/index.html" data-title="Smita från ledet" aria-label="Dela Smita från ledet">📤 Dela</button>
+            <a class="card-link" href="games/smita-fran-ledet/index.html" aria-label="Spela Smita från ledet">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/smita-fran-ledet.mp4"
+                        poster="dependencies/previews/smita-fran-ledet.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
+
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="game-info">
-                <span class="game-tag">3D • Action</span>
-                <h2>Smita från ledet</h2>
-                <p> 
-                    Smit från ledet och håll dig borta från läraren!
-                </p>
+                <div class="game-info">
+                    <span class="game-tag">3D • Action</span>
+                    <h2>Smita från ledet</h2>
+                    <p>Smit från ledet och håll dig borta från läraren!</p>
 
-                <div class="play-button">
-                    <span>Spela nu</span>
-                    <span>→</span>
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
                 </div>
-            </div>
+            </a>
         </article>
-        <!-- Open world sweden-->
-        <article
-            class="game-card"
-            role="link"
-            tabindex="0"
-            aria-label="Spela Open world sweden"
-            onclick="openGame('sweden')"
-            onkeydown="handleCardKey(event, 'sweden')"
-        >
-            <div class="game-preview">
-                <video
-                    src="https://edhb15.github.io/EoJ-spel/dependencies/open-world-sweden.mov"
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    aria-label="Förhandsvisning av Open world sweden"
-                ></video>
 
-                <div class="preview-overlay">
-                    <div class="play-icon">▶</div>
+        <!-- Open World Sweden -->
+        <article class="game-card" id="sweden">
+            <button class="share-btn" type="button" data-share="games/open-world-sweden/index.html" data-title="Open World Sweden" aria-label="Dela Open World Sweden">📤 Dela</button>
+            <a class="card-link" href="games/open-world-sweden/index.html" aria-label="Spela Open World Sweden">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/open-world-sweden.mp4"
+                        poster="dependencies/previews/open-world-sweden.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
+
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="game-info">
-                <span class="game-tag">3D • Bilspel</span>
-                <h2>Open World Sweden</h2>
-                <p>
-                    Kör runt i hela sverige, tjäna pengar, köp nya bilar, och mycket mer!
-                </p>
+                <div class="game-info">
+                    <span class="game-tag">3D • Bilspel</span>
+                    <h2>Open World Sweden</h2>
+                    <p>Kör runt i hela Sverige, tjäna pengar, köp nya bilar och mycket mer!</p>
 
-                <div class="play-button">
-                    <span>Spela nu</span>
-                    <span>→</span>
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
                 </div>
-            </div>
+            </a>
         </article>
+
         <!-- Matchdag -->
-        <article
-            class="game-card"
-            role="link"
-            tabindex="0"
-            aria-label="Spela Matchdag"
-            onclick="openGame('matchdag')"
-            onkeydown="handleCardKey(event, 'matchdag')"
-        >
-            <div class="game-preview">
-                <video
-                    src="https://edhb15.github.io/EoJ-spel/dependencies/matchdag.mov"
-                    muted
-                    loop
-                    playsinline
-                    preload="metadata"
-                    aria-label="Förhandsvisning av Matchdag"
-                ></video>
+        <article class="game-card" id="matchdag">
+            <button class="share-btn" type="button" data-share="games/matchdag/docs/index.html" data-title="Matchdag" aria-label="Dela Matchdag">📤 Dela</button>
+            <a class="card-link" href="games/matchdag/docs/index.html" aria-label="Spela Matchdag">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/matchdag.mp4"
+                        poster="dependencies/previews/matchdag.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
 
-                <div class="preview-overlay">
-                    <div class="play-icon">▶</div>
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
                 </div>
-            </div>
 
-            <div class="game-info">
-                <span class="game-tag">2D • Fotboll</span>
-                <h2>Matchdag</h2>
-                <p>
-                    Spela matcher mot kompisar, köp nya spelare, spela turneringar, bygg ett bättre stadium och mycket, mycket mer.
-                </p>
+                <div class="game-info">
+                    <span class="game-tag">2D • Fotboll</span>
+                    <h2>Matchdag</h2>
+                    <p>Spela matcher mot kompisar, köp nya spelare, spela turneringar, bygg ett bättre stadium och mycket, mycket mer.</p>
 
-                <div class="play-button">
-                    <span>Spela nu</span>
-                    <span>→</span>
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
                 </div>
-            </div>
+            </a>
         </article>
 
     </main>
 
     <footer>
-        <p>© 2026 Edwards och john spel · Made with 🎮</p>
+        <p>© 2026 Edwards och Johns spel · Made with 🎮</p>
     </footer>
 
+    <div class="toast" role="status" aria-live="polite"></div>
+
     <script>
-        // Play previews on hover
+        const SITE_URL = "https://edhb15.github.io/EoJ-spel/";
+
+        // ---------- Video previews ----------
+        // Mouse: play on hover. Touch screens (no hover): play while the card is on screen.
+        const canHover = window.matchMedia("(hover: hover)").matches;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const cards = document.querySelectorAll(".game-card");
 
-        cards.forEach(card => {
-            const video = card.querySelector("video");
-
-            card.addEventListener("mouseenter", () => {
-                video.play().catch(() => {});
+        if (canHover) {
+            cards.forEach(card => {
+                const video = card.querySelector("video");
+                card.addEventListener("mouseenter", () => video.play().catch(() => {}));
+                card.addEventListener("mouseleave", () => video.pause());
             });
+        } else if (!reduceMotion && "IntersectionObserver" in window) {
+            const observer = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    const video = entry.target.querySelector("video");
+                    if (entry.isIntersecting) video.play().catch(() => {});
+                    else video.pause();
+                });
+            }, { threshold: 0.6 });
+            cards.forEach(card => observer.observe(card));
+        }
 
-            card.addEventListener("mouseleave", () => {
-                video.pause();
+        // ---------- Sharing ----------
+        const toast = document.querySelector(".toast");
+        let toastTimer;
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add("show");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+        }
+
+        async function share(url, title, text) {
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title, text, url });
+                } catch (e) { /* user closed the share sheet */ }
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(url);
+                showToast("Länken är kopierad – skicka den till en kompis!");
+            } catch (e) {
+                window.prompt("Kopiera länken:", url);
+            }
+        }
+
+        document.querySelectorAll("[data-share]").forEach(button => {
+            button.addEventListener("click", () => {
+                const url = new URL(button.dataset.share, SITE_URL).href;
+                const title = button.dataset.title;
+                share(url, title, `Spela ${title} gratis i webbläsaren!`);
             });
         });
 
-        // Open the selected game
-        function openGame(game) {
-            const games = {
-                ski: "https://edhb15.github.io/EoJ-spel/games/Ski-to-death-3d/index.html",
-                rooms: "https://edhb15.github.io/EoJ-spel/games/impossible-rooms-3d/index.html",
-                smita: "https://edhb15.github.io/EoJ-spel/games/smita-fran-ledet/index.html",
-                sweden: "https://edhb15.github.io/EoJ-spel/games/open-world-sweden/index.html",
-                matchdag: "https://edhb15.github.io/EoJ-spel/games/matchdag/docs/index.html"
-            };
-
-            window.location.href = games[game];
-        }
-
-        // Support Enter and Space on focused cards
-        function handleCardKey(event, game) {
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                openGame(game);
-            }
-        }
+        document.querySelector("[data-share-site]").addEventListener("click", () => {
+            share(SITE_URL, "Edwards och Johns spel", "Kolla in de här gratis webbspelen!");
+        });
     </script>
 
 </body>
