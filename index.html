@@ -582,7 +582,15 @@
             toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
         }
 
+        // Count share clicks in GoatCounter (shows up as events, e.g. "dela: Matchdag")
+        function trackShare(name) {
+            if (window.goatcounter && window.goatcounter.count) {
+                window.goatcounter.count({ path: "dela-" + name, title: "dela: " + name, event: true });
+            }
+        }
+
         async function share(url, title, text) {
+            trackShare(title);
             if (navigator.share) {
                 try {
                     await navigator.share({ title, text, url });
@@ -610,5 +618,7 @@
         });
     </script>
 
+    <!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
+    <script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
