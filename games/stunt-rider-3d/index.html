@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Stunt Rider 3D</title>
+  <meta name="description" content="Stunt Rider 3D – open-world motorcycle stunt game in the browser. Flips, spins, tailwhips, ramps, a halfpipe and a loop." />
+  <meta name="theme-color" content="#0d0f14" />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Stunt Rider 3D – Edwards och Johns spel">
+  <meta property="og:description" content="Ett öppet motorcykelspel med volter, ramper, halfpipe och loop. Gratis i webbläsaren.">
+  <meta property="og:url" content="https://edhb15.github.io/EoJ-spel/games/stunt-rider-3d/index.html">
+  <meta property="og:image" content="https://edhb15.github.io/EoJ-spel/dependencies/previews/stunt-rider-3d.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div id="hud"></div>
+    <div id="touch">
+      <div class="tc-top">
+        <button data-action="pause" aria-label="Pause">❚❚</button>
+        <button data-action="camera" aria-label="Camera">🎥</button>
+        <button data-action="reset" aria-label="Reset">↺</button>
+      </div>
+      <div class="tc-left">
+        <button data-action="left" aria-label="Steer left">◀</button>
+        <button data-action="right" aria-label="Steer right">▶</button>
+      </div>
+      <div class="tc-right">
+        <button data-action="trick" class="tc-trick" aria-label="Trick">E</button>
+        <button data-action="boost" class="tc-boost" aria-label="Boost">⚡</button>
+        <button data-action="jump" class="tc-jump" aria-label="Jump / wheelie">⤒</button>
+        <button data-action="brake" class="tc-brake" aria-label="Brake">▼</button>
+        <button data-action="throttle" class="tc-gas" aria-label="Accelerate">▲</button>
+      </div>
+    </div>
+    <div id="ui"></div>
+  </div>
+  <div id="loading">
+    <div class="ld-logo"><span class="l1">STUNT</span><span class="l2">RIDER</span><span class="l3">3D</span></div>
+    <div class="ld-bar"><span id="ld-fill"></span></div>
+    <div id="ld-text">Loading…</div>
+    <noscript>This game needs JavaScript.</noscript>
+  </div>
+  <script type="module" src="src/main.js"></script>
+  <!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
+  <script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
