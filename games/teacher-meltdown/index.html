@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Teacher Meltdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@500;700;800;900&family=Patrick+Hand&display=swap">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Teacher Meltdown – Edwards och Johns spel">
+<meta property="og:description" content="Gör läraren så arg som möjligt utan att bli utkastad! Gratis i webbläsaren.">
+<meta property="og:url" content="https://edhb15.github.io/EoJ-spel/games/teacher-meltdown/index.html">
+<meta property="og:image" content="https://edhb15.github.io/EoJ-spel/dependencies/previews/teacher-meltdown.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+</style>
+<style>
+/* Layout: locker-blue hallway page; comic HUD meters on top, classroom stage left, notebook-paper controls right (stacks on phones). Single committed look. */
+:root{
+  --locker:#2d5b86; --locker-deep:#224a70; --paper:#fbfaf4; --rule:#c9d8ea; --margin:#e7a3a0;
+  --ink:#1d2433; --muted:#5b6577; --bus:#f6c026; --bus-deep:#d9a30e;
+  --red:#d63a2f; --orange:#ef8a2b; --green:#2f8f5b; --wall:#cfdcc4;
+  --f-display:"Bangers","Impact","Arial Black",sans-serif;
+  --f-hand:"Patrick Hand","Comic Sans MS","Segoe Print",cursive;
+  --f-body:"Nunito","Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--locker);color:var(--ink)}
+body{
+  font-family:var(--f-body);font-size:15px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 118px, rgba(0,0,0,.10) 118px 122px),
+    var(--locker);
+  min-height:100%;
+}
+.app{
+  max-width:1260px;margin:0 auto;display:grid;gap:14px;
+  padding-block:16px 32px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+/* Header */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px}
+.brand{display:grid;gap:2px;min-width:0}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(36px,6vw,60px);letter-spacing:.03em;line-height:.9;margin:0;color:var(--bus);text-shadow:3px 3px 0 var(--ink);text-wrap:balance}
+.sub{font-family:var(--f-hand);font-size:19px;color:#dfeaf6}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:2.5px solid var(--ink);border-radius:999px;padding:5px 12px;font-weight:800;font-size:14px;box-shadow:3px 3px 0 var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip .dot{width:10px;height:10px;border-radius:50%;background:var(--green)}
+/* Meters */
+.meters{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+.meter{background:var(--paper);border:3px solid var(--ink);border-radius:14px;padding:10px 14px 12px;box-shadow:5px 5px 0 var(--ink);display:grid;gap:8px;min-width:0}
+.meter-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.meter-label{font-weight:900;text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--muted)}
+.meter-state{font-family:var(--f-display);font-size:24px;letter-spacing:.04em;line-height:1}
+.meter-val{margin-left:auto;font-family:var(--f-display);font-size:34px;line-height:.9;font-variant-numeric:tabular-nums}
+.bar{position:relative;height:24px;border:3px solid var(--ink);border-radius:999px;background:#eef1e8;overflow:hidden}
+.fill{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;transition:width .25s ease, background .3s}
+.anger .fill{background:linear-gradient(90deg,#f6d34a 0%,#ef8a2b 45%,#d63a2f 80%,#9e1a12 100%);background-size:var(--fullw,100%) 100%}
+.marks{position:absolute;inset:0;pointer-events:none}
+.marks i{position:absolute;top:0;bottom:0;width:2px;background:rgba(29,36,51,.35)}
+.scale{display:grid;grid-template-columns:repeat(5,1fr);font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.scale span{text-align:center;padding-top:2px;border-top:2px solid transparent}
+.scale span.on{color:var(--ink);border-top-color:var(--ink)}
+.risk .fill{background:repeating-linear-gradient(135deg,#5b6577 0 10px,#475163 10px 20px)}
+.risk.warn .fill{background:repeating-linear-gradient(135deg,#ef8a2b 0 10px,#d9771c 10px 20px)}
+.risk.danger .fill{background:repeating-linear-gradient(135deg,#d63a2f 0 10px,#b52a20 10px 20px)}
+.risk.danger{animation:alarm .8s infinite}
+@keyframes alarm{50%{box-shadow:5px 5px 0 var(--red)}}
+.risk-scale{display:flex;justify-content:space-between;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+/* Main layout */
+.main{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;align-items:start}
+.stage-wrap{display:grid;gap:10px;min-width:0}
+.stage{position:relative;width:100%;aspect-ratio:800/450;max-width:100%;border:3px solid var(--ink);border-radius:14px;overflow:hidden;box-shadow:5px 5px 0 var(--ink);background:var(--wall)}
+.stage svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stage.t4::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 60px rgba(214,58,47,.55);animation:pulse 1s infinite}
+.stage.meltdown{animation:quake .12s infinite}
+@keyframes pulse{50%{opacity:.4}}
+@keyframes quake{0%{transform:translate(0,0)}25%{transform:translate(-4px,2px)}50%{transform:translate(3px,-3px)}75%{transform:translate(-2px,-1px)}}
+.status{position:absolute;left:2%;bottom:3%;display:flex;flex-wrap:wrap;gap:6px;max-width:60%;pointer-events:none}
+.tag{font-size:clamp(10px,1.3vw,12px);font-weight:900;text-transform:uppercase;letter-spacing:.06em;background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:3px 9px;display:inline-flex;align-items:center;gap:6px}
+.tag .dot{width:8px;height:8px;border-radius:50%;background:var(--red)}
+.tag.back .dot{background:var(--green)}
+.tag.bonus{background:var(--bus)}
+/* Speech bubbles */
+.bubble{position:absolute;max-width:min(54%,360px);background:#fff;color:var(--ink);border:3px solid var(--ink);border-radius:18px;padding:7px 12px;font-weight:800;font-size:clamp(11px,1.5vw,16px);line-height:1.25;opacity:0;transform:scale(.7);transition:opacity .15s, transform .15s;pointer-events:none;z-index:3}
+.bubble.show{opacity:1;transform:scale(1)}
+.bubble em{font-weight:700;color:var(--muted)}
+.bubble::after{content:"";position:absolute;width:16px;height:16px;background:inherit;border:inherit;border-width:0 3px 3px 0;transform:rotate(45deg)}
+#tBubble{top:3%;right:2%;transform-origin:85% 100%}
+#tBubble::after{bottom:-10px;right:18%}
+#tBubble.left{right:auto;left:3%;transform-origin:70% 100%}
+#tBubble.left::after{right:auto;left:62%}
+#tBubble.shout{font-family:var(--f-display);font-weight:400;letter-spacing:.04em;font-size:clamp(14px,2.2vw,24px);color:#9e1a12;border-color:var(--red);background:#fff4ef}
+#tBubble.shout.show{animation:jitter .14s infinite}
+#tBubble.warn{background:var(--bus);border-color:var(--ink);color:var(--ink)}
+@keyframes jitter{0%{transform:translate(0,0) rotate(0)}50%{transform:translate(1px,-1px) rotate(-.6deg)}100%{transform:translate(-1px,1px) rotate(.6deg)}}
+#mBubble{bottom:30%;left:52%;transform-origin:10% 100%;background:#fffbe6;max-width:min(44%,280px)}
+#mBubble::after{bottom:-10px;left:12%}
+/* SVG bits */
+.kid, #meFig, #teacher{transition:transform .8s ease-in-out}
+#teacher{transition-duration:.6s}
+#meFig.fast{transition-duration:.5s}
+.laughing .kid-b{animation:giggle .22s infinite}
+@keyframes giggle{50%{transform:translateY(-5px)}}
+.walking #meBody{animation:bob .3s infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+#meHead{transition:transform .4s}
+.sleeping #meHead{transform:translateY(10px)}
+.shake{animation:tshake .1s infinite}
+@keyframes tshake{0%{transform:translate(0,0)}33%{transform:translate(-2px,1px)}66%{transform:translate(2px,-1px)}}
+.puff{fill:#fff;opacity:.85;animation:puff 1.1s infinite ease-out;transform-box:fill-box;transform-origin:center}
+.puff.p2{animation-delay:.35s}.puff.p3{animation-delay:.7s}
+@keyframes puff{0%{transform:translateY(0) scale(.6);opacity:.95}100%{transform:translateY(-22px) scale(1.4);opacity:0}}
+.pop{animation:popup 1.2s ease-out forwards;transform-box:fill-box;transform-origin:center}
+@keyframes popup{0%{transform:translateY(6px) scale(.6);opacity:0}15%{transform:translateY(0) scale(1.1);opacity:1}70%{opacity:1}100%{transform:translateY(-34px) scale(1);opacity:0}}
+.doodle{animation:scribble .5s ease-out;transform-box:fill-box;transform-origin:center}
+@keyframes scribble{0%{transform:scale(.2) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+.ink-in{animation:inkin .6s ease-out}
+@keyframes inkin{from{opacity:0}to{opacity:1}}
+/* Controls */
+.panel{background:var(--paper);border:3px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:12px 14px 14px;display:grid;gap:10px;min-width:0}
+.panel h2{font-family:var(--f-display);font-weight:400;font-size:26px;letter-spacing:.04em;margin:0;line-height:1}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.hint{font-size:12px;color:var(--muted);font-weight:700}
+.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.act{position:relative;overflow:hidden;text-align:left;font:inherit;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:10px;padding:8px 10px 8px 38px;cursor:pointer;box-shadow:3px 3px 0 var(--ink);transition:transform .08s, box-shadow .08s;display:grid;gap:1px;min-height:54px}
+.act:hover:not(:disabled){transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink);background:#fffdf0}
+.act:active:not(:disabled){transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.act:focus-visible{outline:3px solid var(--bus);outline-offset:2px}
+.act:disabled{cursor:not-allowed;color:var(--muted)}
+.act::after{content:"";position:absolute;inset:0;background:rgba(29,36,51,.16);transform-origin:left;transform:scaleX(var(--cd,0));pointer-events:none}
+.act .k{position:absolute;left:8px;top:9px;width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--paper);font-weight:900;font-size:12px;display:grid;place-items:center}
+.act .n{font-weight:900;font-size:14px;line-height:1.15}
+.act .m{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.act .m b{color:var(--green)}
+.act .m .hi{color:var(--red)}
+.act.innocent{grid-column:1/-1;background:var(--bus);min-height:46px}
+.act.innocent:hover:not(:disabled){background:#ffd54a}
+.notebook{
+  background:
+    linear-gradient(90deg, transparent 30px, var(--margin) 30px 32px, transparent 32px),
+    repeating-linear-gradient(180deg, transparent 0 25px, var(--rule) 25px 26px),
+    var(--paper);
+  padding:10px 12px 12px 42px;
+}
+.memory{display:flex;flex-wrap:wrap;gap:6px;min-height:26px}
+.memory .mem{font-family:var(--f-hand);font-size:17px;background:#fff;border:2px solid var(--ink);border-radius:8px;padding:0 8px;line-height:1.4}
+.memory .mem b{font-family:var(--f-body);font-weight:900;font-size:13px;color:var(--red)}
+.memory .empty{font-family:var(--f-hand);font-size:17px;color:var(--muted)}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-family:var(--f-hand);font-size:17px;line-height:1.3}
+.log li{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;min-width:0}
+.log .time{color:var(--muted);font-variant-numeric:tabular-nums}
+.log .what{min-width:0;overflow-wrap:anywhere}
+.log .d{color:var(--red);font-family:var(--f-body);font-weight:900;font-size:12px}
+.log .said{grid-column:2;color:#2a62c9;overflow-wrap:anywhere}
+.log li:first-child .what{font-weight:700}
+/* Overlay */
+.overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;overflow-y:auto;background:rgba(20,36,56,.72);
+  padding-block:max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));}
+.card{width:min(560px,100%);background:var(--paper);border:3px solid var(--ink);border-radius:16px;box-shadow:8px 8px 0 var(--ink);padding:20px 20px 22px;display:grid;gap:14px;position:relative}
+.card h2{font-family:var(--f-display);font-weight:400;font-size:clamp(34px,7vw,52px);letter-spacing:.03em;line-height:.95;margin:0;color:var(--red);text-shadow:2px 2px 0 var(--ink);text-wrap:balance}
+.card p{margin:0;line-height:1.5;max-width:62ch}
+.rules{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.rules li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start;line-height:1.4}
+.rules li::before{content:"✎";font-weight:900;color:var(--red)}
+.field{display:grid;gap:6px}
+.field label{font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.field input{font:inherit;font-family:var(--f-hand);font-size:24px;padding:6px 12px;border:2.5px solid var(--ink);border-radius:10px;background:#fff;color:var(--ink);width:100%}
+.field input:focus-visible{outline:3px solid var(--bus);outline-offset:2px}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btn{font:inherit;font-family:var(--f-display);font-size:26px;letter-spacing:.05em;padding:8px 22px;border:3px solid var(--ink);border-radius:12px;background:var(--bus);color:var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+.btn.ghost{background:#fff;font-size:20px}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--ink)}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn:focus-visible{outline:3px solid var(--bus);outline-offset:3px}
+.form-id{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.report{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}
+.report dt{font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:3px}
+.report dd{margin:0;font-family:var(--f-hand);font-size:20px;line-height:1.25;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.stamp{position:absolute;top:14px;right:14px;transform:rotate(8deg);font-family:var(--f-display);font-size:20px;letter-spacing:.06em;color:var(--red);border:3px solid var(--red);border-radius:8px;padding:2px 10px;background:rgba(255,255,255,.7)}
+.quote{font-family:var(--f-hand);font-size:21px;line-height:1.3;border-left:4px solid var(--red);padding-left:12px;color:#9e1a12}
+@media (max-width:960px){ .main{grid-template-columns:1fr} }
+@media (max-width:720px){ .meters{grid-template-columns:1fr} .scale{font-size:9px} }
+@media (max-width:420px){ .act{padding-left:34px} .act .k{left:6px} .act .n{font-size:13px} .stamp{position:static;justify-self:start} }
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Teacher Meltdown</h1>
+      <div class="sub">Room 12 · Maths, Period 3 · Mr. Pemberton has one nerve left</div>
+    </div>
+    <div class="chips">
+      <span class="chip" id="clockChip"><span class="dot"></span><span id="clockText">10:00 · 45 min left</span></span>
+    </div>
+  </header>
+
+  <section class="meters" aria-label="Meters">
+    <div class="meter anger" id="angerMeter">
+      <div class="meter-head">
+        <span class="meter-label">Anger meter</span>
+        <span class="meter-state" id="angerState">Calm</span>
+        <span class="meter-val" id="angerVal">0%</span>
+      </div>
+      <div class="bar" role="meter" aria-label="Teacher anger" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="angerBar">
+        <div class="fill" id="angerFill"></div>
+        <div class="marks"><i style="left:20%"></i><i style="left:40%"></i><i style="left:60%"></i><i style="left:80%"></i></div>
+      </div>
+      <div class="scale" id="angerScale"><span>Calm</span><span>Annoyed</span><span>Shouting</span><span>Furious</span><span>About to snap</span></div>
+    </div>
+    <div class="meter risk" id="riskMeter">
+      <div class="meter-head">
+        <span class="meter-label">Detention risk</span>
+        <span class="meter-state" id="riskState">Unsuspected</span>
+        <span class="meter-val" id="riskVal">0%</span>
+      </div>
+      <div class="bar" role="meter" aria-label="Detention risk" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="riskBar">
+        <div class="fill" id="riskFill"></div>
+        <div class="marks"><i style="left:50%"></i><i style="left:80%"></i></div>
+      </div>
+      <div class="risk-scale"><span>Safe</span><span>Warning</span><span>Last warning</span><span>Principal</span></div>
+    </div>
+  </section>
+
+  <main class="main">
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <svg id="scene" viewBox="0 0 800 450" role="img" aria-label="The classroom: Mr. Pemberton by the whiteboard, students at their desks, you in the back row">
+          <defs>
+            <pattern id="floorP" width="80" height="22" patternUnits="userSpaceOnUse">
+              <rect width="80" height="22" fill="#b98756"/>
+              <path d="M0 21.5H80M40 0V22" stroke="#a07043" stroke-width="1.2"/>
+            </pattern>
+          </defs>
+          <rect width="800" height="334" fill="#cfdcc4"/>
+          <rect y="250" width="800" height="80" fill="#c3d2b6"/>
+          <rect y="324" width="800" height="9" fill="#7d5f43"/>
+          <rect y="332" width="800" height="118" fill="url(#floorP)"/>
+          <!-- door -->
+          <g>
+            <rect x="34" y="112" width="86" height="214" fill="#9a6b43" stroke="#6e4a2c" stroke-width="4"/>
+            <rect x="50" y="128" width="54" height="62" fill="#d9ecf5" stroke="#6e4a2c" stroke-width="3"/>
+            <circle cx="106" cy="226" r="5" fill="#e6c34b" stroke="#6e4a2c" stroke-width="1.5"/>
+            <rect x="38" y="82" width="78" height="22" rx="4" fill="#fbfaf4" stroke="#1d2433" stroke-width="2"/>
+            <text x="77" y="98" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="900" font-size="12" fill="#1d2433">ROOM 12</text>
+          </g>
+          <!-- whiteboard -->
+          <rect x="164" y="22" width="432" height="206" rx="6" fill="#98a2ad"/>
+          <rect x="172" y="30" width="416" height="190" fill="#fdfdfb"/>
+          <rect x="180" y="227" width="400" height="7" rx="2" fill="#7f8891"/>
+          <rect x="200" y="223" width="22" height="5" rx="2" fill="#d63a2f"/>
+          <rect x="228" y="223" width="22" height="5" rx="2" fill="#2a62c9"/>
+          <g font-family="Patrick Hand, Comic Sans MS, cursive">
+            <text x="188" y="60" font-size="22" fill="#2a62c9">Fractions · Tue 12 Nov</text>
+            <text x="188" y="102" font-size="36" fill="#1d2433">3/4 + 1/8 = ?</text>
+            <g id="lessonLines"></g>
+          </g>
+          <g id="doodles" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></g>
+          <!-- clock -->
+          <g transform="translate(742 62)">
+            <circle r="31" fill="#fbfaf4" stroke="#1d2433" stroke-width="4"/>
+            <g id="clockTicks" stroke="#1d2433" stroke-width="2"></g>
+            <line id="hourH" x1="0" y1="0" x2="0" y2="-14" stroke="#1d2433" stroke-width="4" stroke-linecap="round"/>
+            <line id="minH" x1="0" y1="0" x2="0" y2="-23" stroke="#d63a2f" stroke-width="2.5" stroke-linecap="round"/>
+            <circle r="3" fill="#1d2433"/>
+          </g>
+
+          <!-- teacher -->
+          <g id="teacher" style="transform:translate(690px,148px)">
+            <g id="tInner">
+              <g id="tSteam" style="opacity:0">
+                <ellipse class="puff p1" cx="-30" cy="-34" rx="9" ry="7"/>
+                <ellipse class="puff p2" cx="30" cy="-34" rx="9" ry="7"/>
+                <ellipse class="puff p3" cx="0" cy="-46" rx="10" ry="8"/>
+              </g>
+              <rect x="-26" y="112" width="20" height="74" fill="#3b3f4a"/>
+              <rect x="6" y="112" width="20" height="74" fill="#3b3f4a"/>
+              <ellipse cx="-17" cy="188" rx="15" ry="6" fill="#2a2420"/>
+              <ellipse cx="17" cy="188" rx="15" ry="6" fill="#2a2420"/>
+              <path d="M-38 40 Q0 28 38 40 L42 118 L-42 118 Z" fill="#9dbbe0" stroke="#1d2433" stroke-width="2"/>
+              <path d="M-31 44 L0 72 L31 44 L36 118 L-36 118Z" fill="#7a4b3a"/>
+              <path id="tTie" d="M-5 40 L5 40 L8 90 L0 100 L-8 90Z" fill="#d63a2f" stroke="#1d2433" stroke-width="1.5"/>
+              <g id="tArmsFront">
+                <path d="M-37 46 Q-56 80 -48 112" stroke="#9dbbe0" stroke-width="16" stroke-linecap="round" fill="none"/>
+                <path d="M37 46 Q56 80 48 112" stroke="#9dbbe0" stroke-width="16" stroke-linecap="round" fill="none"/>
+                <circle cx="-48" cy="116" r="8" fill="#f2c9a0"/>
+                <circle cx="48" cy="116" r="8" fill="#f2c9a0"/>
+              </g>
+              <g id="tArmsBack" style="display:none">
+                <path d="M-37 46 Q-56 80 -48 112" stroke="#9dbbe0" stroke-width="16" stroke-linecap="round" fill="none"/>
+                <circle cx="-48" cy="116" r="8" fill="#f2c9a0"/>
+                <path d="M34 46 Q66 20 58 -26" stroke="#9dbbe0" stroke-width="16" stroke-linecap="round" fill="none"/>
+                <circle cx="58" cy="-32" r="8" fill="#f2c9a0"/>
+                <rect x="55" y="-50" width="6" height="16" rx="2" fill="#2a62c9"/>
+              </g>
+              <rect x="-8" y="24" width="16" height="16" fill="#f2c9a0"/>
+              <g id="tFront">
+                <circle class="tface" cx="-32" cy="4" r="7" fill="#f2c9a0"/>
+                <circle class="tface" cx="32" cy="4" r="7" fill="#f2c9a0"/>
+                <circle class="tface" r="32" fill="#f2c9a0"/>
+                <ellipse cx="-8" cy="-22" rx="9" ry="4" fill="#fff" opacity=".45"/>
+                <path d="M-34 6 Q-38 -18 -22 -26 L-20 -12 Q-27 -8 -28 8Z" fill="#8d8d8d"/>
+                <path d="M34 6 Q38 -18 22 -26 L20 -12 Q27 -8 28 8Z" fill="#8d8d8d"/>
+                <circle id="pupL" cx="-12" cy="-1" r="3" fill="#1d2433"/>
+                <circle id="pupR" cx="12" cy="-1" r="3" fill="#1d2433"/>
+                <circle cx="-12" cy="-1" r="9" fill="#fff" fill-opacity=".25" stroke="#1d2433" stroke-width="2.5"/>
+                <circle cx="12" cy="-1" r="9" fill="#fff" fill-opacity=".25" stroke="#1d2433" stroke-width="2.5"/>
+                <path d="M-3 -1 H3" stroke="#1d2433" stroke-width="2.5"/>
+                <line id="browL" x1="-21" y1="-15" x2="-5" y2="-14" stroke="#5a5a5a" stroke-width="4" stroke-linecap="round"/>
+                <line id="browR" x1="5" y1="-14" x2="21" y2="-15" stroke="#5a5a5a" stroke-width="4" stroke-linecap="round"/>
+                <path d="M0 3 Q5 9 0 11" stroke="#1d2433" stroke-width="2" fill="none" stroke-linecap="round"/>
+                <path id="mouth" d="M-10 21 Q0 28 10 21" stroke="#1d2433" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <path id="teeth" d="M-7 18 V28 M0 18 V28 M7 18 V28 M-14 23 H14" stroke="#1d2433" stroke-width="1.5" style="display:none"/>
+                <path d="M-13 13 Q-6 9 0 12 Q6 9 13 13 Q6 17 0 14 Q-6 17 -13 13Z" fill="#6b6b6b"/>
+                <g id="vein" style="display:none" stroke="#9e1a12" stroke-width="2.5" stroke-linecap="round" fill="none">
+                  <path d="M14 -26 Q18 -22 22 -26 M14 -18 Q18 -22 22 -18"/>
+                </g>
+              </g>
+              <g id="tBack" style="display:none">
+                <circle class="tface" cx="-32" cy="4" r="7" fill="#f2c9a0"/>
+                <circle class="tface" cx="32" cy="4" r="7" fill="#f2c9a0"/>
+                <circle class="tface" r="32" fill="#f2c9a0"/>
+                <path d="M-32 -4 Q-34 30 0 32 Q34 30 32 -4 Q18 6 0 4 Q-18 6 -32 -4Z" fill="#8d8d8d"/>
+                <ellipse cx="0" cy="-14" rx="12" ry="7" fill="#fff" opacity=".4"/>
+              </g>
+            </g>
+          </g>
+
+          <g id="junk"></g>
+          <g id="kidsFront"></g>
+          <g id="desksFront"></g>
+          <g id="kidsBack"></g>
+          <g id="meFig" style="transform:translate(450px,418px) scale(1.15)">
+            <g id="meBody">
+              <rect x="-13" y="2" width="10" height="30" rx="3" fill="#2b3550"/>
+              <rect x="3" y="2" width="10" height="30" rx="3" fill="#2b3550"/>
+              <ellipse cx="-9" cy="33" rx="8" ry="4" fill="#1d2433"/>
+              <ellipse cx="9" cy="33" rx="8" ry="4" fill="#1d2433"/>
+              <path d="M-23 6 V-24 Q-23 -37 -10 -37 H10 Q23 -37 23 -24 V6Z" fill="#d63a2f" stroke="#1d2433" stroke-width="1.5"/>
+              <path d="M-12 -37 Q0 -26 12 -37" stroke="#9e1a12" stroke-width="3" fill="none"/>
+              <g id="meHead">
+                <rect x="-5" y="-42" width="10" height="9" fill="#e8b48a"/>
+                <circle cx="-16" cy="-51" r="4" fill="#e8b48a"/>
+                <circle cx="16" cy="-51" r="4" fill="#e8b48a"/>
+                <circle cx="0" cy="-53" r="17" fill="#6a4426"/>
+                <path d="M-17 -55 A17 17 0 0 1 17 -55 Z" fill="#f6c026" stroke="#1d2433" stroke-width="1.5"/>
+                <ellipse cx="0" cy="-55" rx="13" ry="4" fill="#d9a30e" stroke="#1d2433" stroke-width="1.5"/>
+              </g>
+              <g transform="translate(0 -88)">
+                <rect x="-20" y="-11" width="40" height="18" rx="9" fill="#f6c026" stroke="#1d2433" stroke-width="2"/>
+                <text y="3" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="900" font-size="11" fill="#1d2433">YOU</text>
+                <path d="M-5 7 L0 13 L5 7Z" fill="#1d2433"/>
+              </g>
+            </g>
+          </g>
+          <g id="desksBack"></g>
+          <g id="fx"></g>
+        </svg>
+        <div class="bubble" id="tBubble" aria-live="polite"></div>
+        <div class="bubble" id="mBubble"></div>
+        <div class="status">
+          <span class="tag" id="modeTag"><span class="dot"></span><span id="modeText">Watching the class</span></span>
+          <span class="tag bonus" id="varietyTag" hidden>Variety bonus ×1.15</span>
+          <span class="tag bonus" id="chaosTag" hidden>Class chaos ×1.3</span>
+        </div>
+      </div>
+      <section class="panel notebook" aria-label="What the teacher remembers">
+        <h2>Mr. Pemberton remembers</h2>
+        <div class="memory" id="memory"><span class="empty">Nothing yet. A clean record. For now.</span></div>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+
+    <aside class="stage-wrap">
+      <section class="panel" aria-label="Your moves">
+        <div class="panel-head">
+          <h2>Your moves</h2>
+          <span class="hint">Keys 1–0 · I to act innocent</span>
+        </div>
+        <div class="actions" id="actions"></div>
+        <p class="hint" style="margin:0">Sneaky moves are much safer while Mr. Pemberton's back is turned. Mixing up your tricks makes him angrier than repeating one.</p>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay" id="startOverlay">
+  <form class="card" id="startForm">
+    <div class="form-id"><span>Room 12 · Period 3</span><span>Lesson: Fractions</span></div>
+    <h2>Make Mr. Pemberton snap</h2>
+    <p>He has taught maths for 23 years. He has one nerve left. Your job is to get his anger to <b>100%</b> before the bell rings, without getting sent to the principal.</p>
+    <ul class="rules">
+      <li>When he turns to write on the board, sneaky moves barely raise your detention risk.</li>
+      <li>He remembers everything. Repeating one trick gets less of a reaction, so mix it up.</li>
+      <li>Make the class laugh and everything you do for the next 6 seconds counts 1.3×.</li>
+      <li>If detention risk hits 100%, you're out. Act innocent to cool it down.</li>
+      <li>Leave him alone too long and he calms down. The lesson lasts 45 minutes (3 real minutes).</li>
+    </ul>
+    <div class="field">
+      <label for="nameInput">Your name (he will be shouting it)</label>
+      <input id="nameInput" maxlength="14" autocomplete="off" placeholder="Jamie">
+    </div>
+    <div class="btns"><button class="btn" type="submit">Start the lesson</button></div>
+    <p class="hint" id="bestLine" hidden></p>
+  </form>
+</div>
+
+<div class="overlay" id="endOverlay" hidden>
+  <div class="card" id="endCard"></div>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const NS = "http://www.w3.org/2000/svg";
+const ORD = ["zeroth","first","second","third","fourth","fifth","sixth","seventh","eighth","ninth","tenth","eleventh","twelfth"];
+const ord = n => ORD[n] || (n + "th");
+const LESSON_SECONDS = 180;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = s => esc(s).replace(/\*([^*]+)\*/g, "<em>$1</em>");
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+
+const TIER_NAMES = ["Calm","Annoyed","Shouting","Furious","About to SNAP","LOST IT"];
+const TIER_COLORS = ["#2f8f5b","#b7860b","#d9771c","#d63a2f","#9e1a12","#9e1a12"];
+function tierOf(a){ if (a >= 100) return 5; if (a > 80) return 4; if (a > 60) return 3; if (a > 40) return 2; if (a > 20) return 1; return 0; }
+
+/* ---------------- Dialogue ---------------- */
+const UNSEEN = [
+  ["Hm? Who {thing}?", "I heard that. Who {thing}?"],
+  ["Somebody {thing}. I will find out who.", "I'm writing on the board, not deaf. Who {thing}?"],
+  ["Who {thing}?!", "I know someone {thing}!"],
+  ["I have eyes in the back of my head, you know!", "{n}. It was you. I can FEEL it."],
+  ["I can't even turn my back for two seconds!!", "Every time I face the board: CHAOS!"]
+];
+const REPEAT = [
+  ["{n}, that's the {ord} time you've {past}.", "Hmm. That's the {ord} time you've {past}, {n}."],
+  ["{n}, that's the {ord} time you've {past}. I'm counting.", "The {ord} time, {n}. I am keeping a list."],
+  ["That's the {ord} time you've {past}!", "{ord} time, {n}! I'm writing it ALL down!"],
+  ["The {ord} time you've {past}! The {ord}!", "I have counted every single one, {n}! That's the {ord}!"],
+  ["{ord}! TIME! {ord} TIME YOU'VE {past}!", "That's {ord}! I am going to dream about this!"]
+];
+const MEMORY = [
+  ["First you {p1}, then you {p2}, and now you've {p3}. Interesting choices, {n}."],
+  ["First you {p1}, then you {p2}, and now you've {p3}? Really, {n}?"],
+  ["First you {p1}! Then you {p2}! And NOW you've {p3}?!"],
+  ["You {p1}, you {p2}, and now you've {p3}! What is WRONG with you?!"],
+  ["{p1}! {p2}! {p3}! I remember ALL of it, {n}!"]
+];
+const IDLE = [
+  ["So, to add fractions, we need a common denominator.", "Three quarters is the same as six eighths. Everyone with me?", "Turn to page 47, exercise B.", "Fractions are just pizza with rules."],
+  ["*sigh* As I was saying... denominators.", "Can we please just get through this lesson?", "Eyes on the board, everyone."],
+  ["*deep breath* I love teaching. I love teaching.", "Where... was I.", "Only twenty-three years until retirement."],
+  ["*knuckles cracking*", "*breathing very loudly through his nose*", "I am perfectly calm. PERFECTLY. CALM."],
+  ["*eye twitching*", "*muttering about goat farms*", "Seven... eighths... seven... eighths..."]
+];
+const WARN50 = ["{n}. That's a warning. One more step out of line...", "I'm watching you, {n}. Strike one."];
+const WARN80 = ["{n}! LAST WARNING! One more thing and you're going to the PRINCIPAL!", "That's it, {n}. FINAL warning. I am THIS close to sending you out."];
+
+const ACTIONS = [
+  { id:"paper", key:"1", label:"Throw paper ball", anger:4.5, sus:14, cd:2.5, sneaky:true, risk:"med",
+    unseen:"threw that", pastS:"threw paper at me", pastP:"thrown paper at me", mem:"Paper balls", melt:"THE PAPER BALLS!",
+    say:["*flick*", "*yeet*", null, null],
+    lines:[
+      ["{n}, please don't throw things in my classroom.", "Was that a paper ball? Paper stays on the desk, {n}."],
+      ["{n}! Paper goes in the BIN, not at my head.", "Do I look like a basketball hoop to you?"],
+      ["Stop throwing paper, {n}!", "This is a classroom, not a snowball fight!"],
+      ["Do you know how many trees died for that, {n}?!", "One more paper ball and I'm framing it as EVIDENCE!"],
+      ["I am being attacked by STATIONERY!!", "The paper! It's everywhere! WHY is it everywhere?!"]
+    ]},
+  { id:"interrupt", key:"2", label:"Interrupt the teacher", anger:4, sus:9, cd:2, attention:true, risk:"med",
+    pastS:"interrupted me", pastP:"interrupted me", mem:"Interruptions", melt:"THE INTERRUPTING!",
+    say:["Sorry, can I just say something?", "Fun fact: octopuses have three hearts!", "Actually, I think you're wrong.", "Wait wait wait. Go back.", "Hold on, I'm thinking.", "Sorry, did you say something?"],
+    lines:[
+      ["Please let me finish, {n}.", "Hands up if you want to speak, {n}."],
+      ["{n}, I am TALKING.", "That has nothing to do with fractions, {n}."],
+      ["Stop interrupting me!", "I have been trying to finish ONE sentence for ten minutes!"],
+      ["I will finish this sentence if it takes all year!", "Do. Not. Say. Another. Word."],
+      ["I forgot what I was saying! Are you happy?!", "My train of thought has left the station and it is ON FIRE!"]
+    ]},
+  { id:"sleep", key:"3", label:"Pretend to sleep", anger:4, sus:6, cd:4, attention:true, risk:"low",
+    pastS:"fell asleep", pastP:"fallen asleep", mem:"Naps", melt:"THE SNORING!",
+    say:["Zzz... *snore*", "*snoooore*", "Zzz... five more minutes, Mum..."],
+    lines:[
+      ["Are we keeping you up, {n}?", "Wake up, {n}. Fractions are exciting!"],
+      ["{n}! This is not a nap room.", "Did you go to bed at all last night?"],
+      ["Wake up!", "I can hear you snoring from here!"],
+      ["I didn't study for six years to teach a pillow!", "If you're sleeping, I'm calling your parents to tuck you in!"],
+      ["Nobody sleeps in my class! Nobody! Not even me!", "I haven't slept since September and YOU get a nap?!"]
+    ]},
+  { id:"noise", key:"4", label:"Make a weird noise", anger:4, sus:10, cd:2, sneaky:true, risk:"med",
+    unseen:"made that noise", pastS:"mooed at me", pastP:"made that noise", mem:"Weird noises", melt:"THE MOOING!",
+    say:["MOOOOOO", "BWAAARP", "*fart noise*", "Ka-KAWWW!", "Beep boop beep", "HONK", "Ribbit."],
+    lines:[
+      ["Who... was that, {n}?", "Let's save the animal noises for biology."],
+      ["{n}, was that a cow?", "That is not a noise a human should make."],
+      ["What was that noise?!", "This is not a farm, {n}!"],
+      ["If I hear one more moo I'm calling a vet!", "My ears! My poor ears!"],
+      ["I am surrounded by animals!", "The zoo called. They want you back!"]
+    ]},
+  { id:"question", key:"5", label:"Ask a ridiculous question", anger:3.5, sus:5, cd:2.5, attention:true, risk:"low",
+    pastS:"asked a ridiculous question", pastP:"asked a ridiculous question", mem:"Silly questions", melt:"THE BANANA QUESTIONS!",
+    say:["If I divide a pizza by zero, do I get infinite pizza?", "Do fractions have feelings?", "Can a ghost do maths?", "What's the square root of a banana?", "If you're the teacher, who teaches you?", "Are numbers real or did someone make them up?", "Is 7 scared of 8 because 7 ate 9?", "Can I use a calculator in my dreams?", "Why is a quarter a quarter and not a fourth-er?"],
+    lines:[
+      ["That's... an interesting question, {n}. No.", "Let's stay on topic, {n}."],
+      ["{n}, that is not a real question.", "Why? WHY would you ask that?"],
+      ["That is not a maths question!", "There IS such a thing as a stupid question and you found it!"],
+      ["I don't know if a banana has a square root and I don't care!", "No more questions! Ever! From anyone!"],
+      ["I'm not answering that! I'm not answering ANYTHING ever again!", "Questions! Always questions! Where are the ANSWERS, {n}?!"]
+    ]},
+  { id:"walk", key:"6", label:"Walk around the room", anger:5.5, sus:16, cd:4, sneaky:true, risk:"high",
+    unseen:"is walking around", pastS:"went for a stroll", pastP:"gone for a stroll", mem:"Walkabouts", melt:"THE WANDERING!",
+    say:["*stretches and wanders off*", "Just stretching my legs!", "Going on a little adventure."],
+    lines:[
+      ["{n}, please sit down.", "Where are you going, {n}?"],
+      ["Back to your seat, {n}. Now.", "Did I say you could get up?"],
+      ["Sit! Down!", "This is not a shopping centre! Stop browsing!"],
+      ["Are you lost?! Your desk is RIGHT THERE!", "I will glue you to that chair!"],
+      ["Why are you always wandering?! Are you a robot vacuum?!", "Sit down sit down sit down sit DOWN!"]
+    ]},
+  { id:"draw", key:"7", label:"Draw on the whiteboard", anger:7, sus:20, cd:5, sneaky:true, risk:"high",
+    unseen:"is drawing on my board", pastS:"drew on my board", pastP:"drawn on my board", mem:"Board doodles", melt:"MY BOARD!",
+    say:["*grabs a marker*", "Just adding some art.", "*draws very fast*"],
+    lines:[
+      ["Please don't draw on the board, {n}.", "Is that... supposed to be me?"],
+      ["{n}, that is MY board.", "That drawing is not mathematically accurate."],
+      ["Get away from my whiteboard!", "I do NOT have horns!"],
+      ["Is that permanent marker?! {n}, is that PERMANENT MARKER?!", "My beautiful fractions! Ruined!"],
+      ["The board is destroyed! The lesson is destroyed! I am destroyed!", "I spent forty minutes on that diagram!"]
+    ]},
+  { id:"laugh", key:"8", label:"Make classmates laugh", anger:3, sus:8, cd:12, sneaky:true, risk:"low", chaos:true,
+    unseen:"is laughing", pastS:"set the whole class off", pastP:"set the whole class off", mem:"Class giggles", melt:"THE GIGGLING!",
+    say:["Psst... look at his tie.", "*does a perfect Mr. Pemberton impression*", "*makes a ridiculous face*", "*whispers* he said 'denominator' again"],
+    lines:[
+      ["Settle down, everyone.", "What's so funny, {n}?"],
+      ["Something funny, {n}? Share it with the class. Actually, don't.", "Everyone, eyes on the board."],
+      ["Stop laughing! All of you!", "This is not a comedy show, {n}!"],
+      ["The next person who laughs gets a pop quiz!", "I can't hear myself think!"],
+      ["Why is everyone laughing?! Is it me?! Is it my TIE?!", "Silence! SILENCE! I said SILENCE!!"]
+    ]},
+  { id:"homework", key:"9", label:"Refuse your homework", anger:6, sus:12, cd:9, attention:true, risk:"med",
+    pastS:"refused your homework", pastP:"refused your homework", mem:"Homework refusals", melt:"THE HOMEWORK!",
+    say:["I didn't do my homework. On purpose.", "My dog ate it. I don't have a dog.", "Homework is against my beliefs.", "I did it in invisible ink.", "I'm saving it for next year."],
+    lines:[
+      ["That's disappointing, {n}. Bring it tomorrow.", "Homework isn't optional, {n}."],
+      ["Again, {n}? That's a zero.", "Your dog must be very well fed."],
+      ["What do you mean you REFUSE?!", "It was five questions! FIVE!"],
+      ["Detention! Double homework! TRIPLE homework!", "I'm giving you homework about your homework!"],
+      ["Nobody does homework! Why do I even set it?!", "I mark papers every night for THIS?!"]
+    ]},
+  { id:"what", key:"0", label:"Say “What?”", anger:2.5, sus:4, cd:1.5, attention:true, risk:"low",
+    pastS:"said 'What?'", pastP:"said 'What?'", mem:"“What?”s", melt:"THE 'WHAT?'!",
+    say:["What?", "What?", "Whaaat?", "Sorry, what?", "Huh? What?"],
+    lines:[
+      ["I said: three quarters plus one eighth.", "Please listen, {n}. Three quarters plus one eighth."],
+      ["Three. Quarters. Plus. One. Eighth.", "Were you listening at all, {n}?"],
+      ["I said THREE QUARTERS PLUS ONE EIGHTH!", "Clean your ears, {n}!"],
+      ["Don't you dare say what again!", "Say 'What' one more time! I DARE you!"],
+      ["What?! WHAT?! I'll give you WHAT!", "Three quarters plus one eighth is seven eighths and I HATE IT HERE!"]
+    ]}
+];
+const INNOCENT = { id:"innocent", key:"I", label:"Act innocent", cd:6 };
+const ACT = Object.fromEntries(ACTIONS.map(a => [a.id, a]));
+const LESSON = ["3/4 = 6/8", "6/8 + 1/8 = 7/8", "Answer: 7/8", "Homework: p.47, Ex. B"];
+
+/* ---------------- Scene building ---------------- */
+const KIDS_FRONT = [[140,"#e8b48a","#3b2a1e","#e8553f",false],[290,"#8d5a3b","#1b1b1b","#3f9b6b",true],[440,"#f5d3b5","#d9a441","#6f5bd6",true],[590,"#c68b5f","#5a3a22","#2f86c9",false]];
+const KIDS_BACK = [[110,"#a8704a","#2a1a12","#f0a83a",true],[280,"#f1c7a1","#b0552a","#3a7d8c",false],[620,"#e8b48a","#1b1b1b","#9b4dca",false]];
+function kidSVG(x, y, s, skin, hair, shirt, long){
+  return `<g class="kid" style="transform:translate(${x}px,${y}px) scale(${s})"><g class="kid-b">
+    <path d="M-22 4 V-24 Q-22 -36 -10 -36 H10 Q22 -36 22 -24 V4Z" fill="${shirt}" stroke="#1d2433" stroke-width="1.5"/>
+    <rect x="-5" y="-41" width="10" height="8" fill="${skin}"/>
+    <circle cx="-16" cy="-50" r="4" fill="${skin}"/><circle cx="16" cy="-50" r="4" fill="${skin}"/>
+    <circle cx="0" cy="-52" r="17" fill="${hair}"/>
+    ${long ? `<path d="M-17 -52 V-28 Q0 -22 17 -28 V-52Z" fill="${hair}"/>` : ""}
+  </g></g>`;
+}
+function deskSVG(x, y, s, extra){
+  return `<g style="transform:translate(${x}px,${y}px) scale(${s})">
+    <rect x="-56" y="0" width="112" height="10" rx="3" fill="#c9935b" stroke="#6e4a2c" stroke-width="1.5"/>
+    <rect x="-50" y="10" width="100" height="28" fill="#a87443"/>
+    <rect x="-50" y="10" width="100" height="4" fill="#8e6036"/>
+    ${extra || ""}
+  </g>`;
+}
+function buildScene(){
+  $("#kidsFront").innerHTML = KIDS_FRONT.map(k => kidSVG(k[0], 360, 1, k[1], k[2], k[3], k[4])).join("");
+  $("#desksFront").innerHTML = KIDS_FRONT.map(k => deskSVG(k[0], 360, 1)).join("");
+  $("#kidsBack").innerHTML = KIDS_BACK.map(k => kidSVG(k[0], 418, 1.15, k[1], k[2], k[3], k[4])).join("");
+  $("#desksBack").innerHTML = KIDS_BACK.map(k => deskSVG(k[0], 418, 1.15)).join("") +
+    deskSVG(450, 418, 1.15, `<rect x="-36" y="-5" width="30" height="6" rx="1" fill="#fbfaf4" stroke="#1d2433" stroke-width="1" transform="rotate(-6)"/><rect x="14" y="-3" width="26" height="4" rx="2" fill="#f6c026" stroke="#1d2433" stroke-width="1"/>`);
+  let t = "";
+  for (let i = 0; i < 12; i++){
+    const a = i * Math.PI / 6, r1 = i % 3 === 0 ? 22 : 25;
+    t += `<line x1="${(Math.sin(a)*r1).toFixed(1)}" y1="${(-Math.cos(a)*r1).toFixed(1)}" x2="${(Math.sin(a)*28).toFixed(1)}" y2="${(-Math.cos(a)*28).toFixed(1)}"/>`;
+  }
+  $("#clockTicks").innerHTML = t;
+}
+
+function svgEl(tag, attrs, parent){
+  const el = document.createElementNS(NS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  (parent || $("#fx")).appendChild(el);
+  return el;
+}
+function pop(text, x, y, opts = {}){
+  const el = svgEl("text", {
+    x, y, "text-anchor":"middle", class:"pop",
+    "font-family": opts.hand ? "Patrick Hand, cursive" : "Bangers, Impact, sans-serif",
+    "font-size": opts.size || 26, fill: opts.fill || "#1d2433",
+    stroke: opts.stroke || "#fbfaf4", "stroke-width": opts.sw ?? 4, "paint-order":"stroke"
+  });
+  el.textContent = text;
+  if (opts.delay) el.style.animationDelay = opts.delay + "ms";
+  setTimeout(() => el.remove(), 1300 + (opts.delay || 0));
+}
+
+const DOODLES = [
+  `<g stroke="#d63a2f"><circle r="17"/><path d="M-12 -12 L-17 -28 L-5 -16 M12 -12 L17 -28 L5 -16"/><path d="M-9 -5 L-3 -2 M9 -5 L3 -2"/><path d="M-7 9 Q0 3 7 9"/><text y="34" text-anchor="middle" font-family="Patrick Hand, cursive" font-size="14" fill="#d63a2f" stroke="none">MR P</text></g>`,
+  `<g stroke="#2a62c9"><circle r="18"/><circle cx="-6" cy="-5" r="1.6"/><circle cx="6" cy="-5" r="1.6"/><path d="M-10 4 Q0 14 10 4"/><path d="M-3 10 Q0 18 3 10"/></g>`,
+  `<g stroke="#2f8f5b"><circle cy="4" r="15"/><path d="M-12 -4 L-10 -19 L-3 -10 M12 -4 L10 -19 L3 -10"/><path d="M-22 3 L-8 6 M-22 10 L-8 9 M22 3 L8 6 M22 10 L8 9"/><circle cx="-5" cy="1" r="1.5"/><circle cx="5" cy="1" r="1.5"/></g>`,
+  `<g stroke="#d63a2f"><path d="M0 -26 Q10 -12 8 12 H-8 Q-10 -12 0 -26Z"/><circle cy="-6" r="4"/><path d="M-8 6 L-15 16 L-8 12 M8 6 L15 16 L8 12"/><path d="M-4 15 L0 26 L4 15" stroke="#ef8a2b"/></g>`,
+  `<g stroke="#2a62c9"><circle cy="-18" r="7"/><path d="M0 -11 V8 M0 -4 L-14 -16 M0 -4 L13 4 M0 8 L-10 24 M0 8 L12 20"/><path d="M16 -20 q4 -4 8 0 M-24 6 q4 -4 8 0"/></g>`,
+  `<g><text text-anchor="middle" y="4" font-family="Patrick Hand, cursive" font-size="20" fill="#2f8f5b" stroke="none">MATHS =</text><text text-anchor="middle" y="24" font-family="Patrick Hand, cursive" font-size="20" fill="#2f8f5b" stroke="none">zzz</text></g>`,
+  `<g stroke="#d63a2f"><path d="M0 14 L-16 -2 Q-24 -12 -14 -18 Q-6 -22 0 -12 Q6 -22 14 -18 Q24 -12 16 -2Z"/><text text-anchor="middle" y="32" font-family="Patrick Hand, cursive" font-size="13" fill="#d63a2f" stroke="none">pizza &gt; maths</text></g>`,
+  `<g><text text-anchor="middle" y="-2" font-family="Patrick Hand, cursive" font-size="17" fill="#2a62c9" stroke="none">7 ate 9</text><text text-anchor="middle" y="18" font-family="Patrick Hand, cursive" font-size="17" fill="#2a62c9" stroke="none">lol</text></g>`,
+  `<g stroke="#1d2433"><path d="M-18 -6 H18 M-18 6 H18 M-6 -18 V18 M6 -18 V18"/><path d="M-15 -15 L-9 -9 M-9 -15 L-15 -9" stroke="#d63a2f"/><circle cx="0" cy="0" r="3.5" stroke="#2a62c9"/><path d="M9 9 L15 15 M15 9 L9 15" stroke="#d63a2f"/></g>`
+];
+const SLOTS = [[410,72],[482,72],[548,72],[410,132],[482,132],[548,132],[410,188],[482,188],[548,188]];
+
+/* ---------------- State ---------------- */
+let S = null;
+function newState(name){
+  return {
+    name, anger: 0, sus: 0, peak: 0, peakSus: 0, time: LESSON_SECONDS, mode: "facing", modeT: rand(5, 7),
+    tx: 690, counts: {}, history: [], cd: {}, cdTotal: {}, busyUntil: 0, chaosUntil: 0,
+    lastAction: performance.now(), lastChatter: performance.now(), lastSqueak: 0, tBubbleUntil: 0, mBubbleUntil: 0,
+    warned50: false, warned80: false, lessonIdx: 0, doodleIdx: 0, slotIdx: 0, running: false, over: false,
+    total: 0, log: [], lastTeacherLine: "", varietyUntil: 0, started: performance.now()
+  };
+}
+
+/* ---------------- Teacher ---------------- */
+const MOUTHS = [
+  { d:"M-10 21 Q0 28 10 21", fill:"none" },
+  { d:"M-10 23 L10 23", fill:"none" },
+  { d:"M-10 21 Q0 16 10 21 Q0 31 -10 21Z", fill:"#5a1a1a" },
+  { d:"M-13 19 Q0 13 13 19 Q12 33 0 34 Q-12 33 -13 19Z", fill:"#5a1a1a" },
+  { d:"M-14 18 L14 18 L14 29 L-14 29Z", fill:"#fff", teeth:true }
+];
+function lerpColor(a, b, t){
+  const ca = a.match(/\w\w/g).map(h => parseInt(h, 16)), cb = b.match(/\w\w/g).map(h => parseInt(h, 16));
+  return "#" + ca.map((v, i) => Math.round(v + (cb[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+function setMode(mode){
+  S.mode = mode;
+  S.modeT = mode === "facing" ? rand(4, 7) : rand(3.2, 5.5);
+  S.tx = mode === "facing" ? 690 : 330;
+  $("#teacher").style.transform = `translate(${S.tx}px,148px)`;
+  const back = mode === "writing";
+  $("#tFront").style.display = back ? "none" : "";
+  $("#tTie").style.display = back ? "none" : "";
+  $("#tBack").style.display = back ? "" : "none";
+  $("#tArmsFront").style.display = back ? "none" : "";
+  $("#tArmsBack").style.display = back ? "" : "none";
+  $("#tBubble").classList.toggle("left", back);
+  if (back && S.lessonIdx < LESSON.length){
+    const i = S.lessonIdx++;
+    const angry = tierOf(S.anger) >= 3;
+    const t = svgEl("text", { x: 188, y: 136 + i * 24, "font-size": 21, fill: angry ? "#d63a2f" : "#1d2433", class: "ink-in" }, $("#lessonLines"));
+    t.textContent = LESSON[i] + (angry ? " !!!" : "");
+  }
+}
+
+/* ---------------- Bubbles ---------------- */
+let tTimer, mTimer;
+function teacherSay(text, tier, opts = {}){
+  const b = $("#tBubble");
+  const go = () => {
+    const shout = tier >= 2 && !opts.quiet;
+    let t = text.replace(/\{n\}/g, S.name);
+    if (shout) t = t.toUpperCase();
+    b.innerHTML = fmt(t);
+    b.className = "bubble show" + (S.mode === "writing" ? " left" : "") + (shout ? " shout" : "") + (opts.warn ? " warn" : "");
+    const ms = opts.ms || Math.max(2200, 1200 + t.length * 45);
+    S.tBubbleUntil = performance.now() + ms;
+    S.lastTeacherLine = t;
+    clearTimeout(tTimer);
+    tTimer = setTimeout(() => b.classList.remove("show"), ms);
+    if (opts.logIt) addLogSaid(t);
+  };
+  opts.delay ? setTimeout(() => { if (S) go(); }, opts.delay) : go();
+}
+function meSay(text, ms = 2000){
+  if (!text) return;
+  const b = $("#mBubble");
+  b.innerHTML = fmt(text);
+  b.classList.add("show");
+  clearTimeout(mTimer);
+  mTimer = setTimeout(() => b.classList.remove("show"), ms);
+}
+
+/* ---------------- Player movement & effects ---------------- */
+const SEAT = [450, 418, 1.15];
+function moveMe(x, y, s, cls){
+  const f = $("#meFig");
+  f.classList.toggle("fast", cls === "fast");
+  f.style.transform = `translate(${x}px,${y}px) scale(${s})`;
+}
+function walkPath(points, stepMs, done){
+  const fig = $("#meFig");
+  fig.classList.add("walking");
+  points.forEach((p, i) => setTimeout(() => moveMe(p[0], p[1], p[2], p[3]), i * stepMs));
+  setTimeout(() => { fig.classList.remove("walking"); done && done(); }, points.length * stepMs);
+}
+
+function fxPaper(){
+  const facing = S.mode === "facing";
+  const tx = facing ? S.tx + rand(-14, 14) : rand(390, 570);
+  const ty = facing ? 140 : rand(60, 200);
+  const sx = 450, sy = 372;
+  const ball = svgEl("circle", { r: 7, fill: "#f4f1e8", stroke: "#8f8a7c", "stroke-width": 2 });
+  const mx = (sx + tx) / 2, my = Math.min(sy, ty) - 90;
+  const fx = rand(160, 770), fy = rand(338, 352);
+  const kf = [
+    { transform: `translate(${sx}px,${sy}px)` },
+    { transform: `translate(${mx}px,${my}px)`, offset: .45 },
+    { transform: `translate(${tx}px,${ty}px)`, offset: .75 },
+    { transform: `translate(${fx}px,${fy}px)` }
+  ];
+  const anim = ball.animate ? ball.animate(kf, { duration: 1100, easing: "ease-in-out", fill: "forwards" }) : null;
+  const land = () => {
+    ball.remove();
+    const junk = $("#junk");
+    svgEl("circle", { cx: fx, cy: fy, r: 6, fill: "#f4f1e8", stroke: "#8f8a7c", "stroke-width": 2 }, junk);
+    while (junk.childNodes.length > 40) junk.firstChild.remove();
+  };
+  setTimeout(() => pop(facing ? "BONK!" : "SPLAT", tx, ty - 20, { fill: "#d63a2f", size: 24 }), 820);
+  if (anim) anim.onfinish = land; else setTimeout(land, 1100);
+  return 0;
+}
+function fxSleep(){
+  const f = $("#meFig");
+  f.classList.add("sleeping");
+  ["z", "Z", "Z"].forEach((z, i) => pop(z, 470 + i * 14, 340 - i * 12, { fill: "#2a62c9", size: 18 + i * 6, delay: i * 500 }));
+  setTimeout(() => f.classList.remove("sleeping"), 2600);
+  return 2600;
+}
+function fxNoise(){
+  pop(pick(["!!", "♪", "?!"]), 450 + rand(-30, 30), 330, { fill: "#ef8a2b", size: 30 });
+  return 0;
+}
+function fxWalk(){
+  walkPath([[400, 350, 1, ""], [250, 336, .95, ""], [120, 344, .97, ""], [300, 346, 1, ""], [450, 418, 1.15, ""]], 700);
+  return 3500;
+}
+function fxDraw(){
+  const slot = S.slotIdx < SLOTS.length ? SLOTS[S.slotIdx++] : [rand(400, 560), rand(70, 190)];
+  const d = DOODLES[S.doodleIdx++ % DOODLES.length];
+  walkPath([[430, 350, 1, ""], [slot[0] - 10, 310, .92, ""], [slot[0] - 10, 310, .92, ""], [430, 350, 1, ""], [450, 418, 1.15, ""]], 700);
+  setTimeout(() => {
+    const g = svgEl("g", { transform: `translate(${slot[0].toFixed(0)} ${slot[1].toFixed(0)}) rotate(${rand(-10, 10).toFixed(0)})` }, $("#doodles"));
+    g.innerHTML = `<g class="doodle">${d}</g>`;
+    pop("*squeak squeak*", slot[0], slot[1] - 30, { hand: true, size: 16, fill: "#5b6577", sw: 3 });
+  }, 1550);
+  return 3500;
+}
+function fxLaugh(){
+  const k = [$("#kidsFront"), $("#kidsBack")];
+  k.forEach(g => g.classList.add("laughing"));
+  const xs = KIDS_FRONT.map(a => [a[0], 296]).concat(KIDS_BACK.map(a => [a[0], 346]));
+  xs.forEach((p, i) => pop(pick(["HA", "HAHA", "lol", "HEHE"]), p[0] + rand(-10, 10), p[1], { fill: "#2f8f5b", size: 20, delay: i * 120 }));
+  setTimeout(() => k.forEach(g => g.classList.remove("laughing")), 6000);
+  return 0;
+}
+function fxHomework(){ pop("0/10", 500, 380, { fill: "#d63a2f", size: 26 }); return 0; }
+const FX = { paper: fxPaper, sleep: fxSleep, noise: fxNoise, walk: fxWalk, draw: fxDraw, laugh: fxLaugh, homework: fxHomework };
+
+/* ---------------- Actions ---------------- */
+function lessonClock(){
+  const mins = Math.min(45, Math.floor((LESSON_SECONDS - S.time) / LESSON_SECONDS * 45));
+  return "10:" + String(mins).padStart(2, "0");
+}
+function addLog(what, d){
+  S.log.unshift({ t: lessonClock(), what, d, said: "" });
+  S.log = S.log.slice(0, 6);
+  renderLog();
+}
+function addLogSaid(t){
+  if (S.log[0] && !S.log[0].said) { S.log[0].said = "“" + t + "”"; renderLog(); }
+}
+function fill(line, a, count){
+  let p = { p1: "", p2: "" };
+  return line
+    .replace(/\{ord\}/g, ord(count))
+    .replace(/\{past\}/g, a ? a.pastP : "")
+    .replace(/\{thing\}/g, a ? (a.unseen || "did that") : "");
+}
+
+function act(id){
+  if (!S || !S.running || S.over) return;
+  const now = performance.now();
+  if (id === "innocent") return actInnocent(now);
+  const a = ACT[id];
+  if ((S.cd[id] || 0) > now || S.busyUntil > now) return;
+
+  const facing = S.mode === "facing";
+  const seen = facing || !a.sneaky;
+  const prev = S.counts[id] || 0;
+  const count = prev + 1;
+  S.counts[id] = count;
+  const recent = S.history.filter(h => h.id === id && now - h.t < 15000).length;
+
+  let mul = prev === 0 ? 1.1 : 1 / (1 + 0.4 * recent);
+  const last2 = S.history.slice(-2).map(h => h.id);
+  const variety = last2.length === 2 && new Set([...last2, id]).size === 3;
+  if (variety) { mul *= 1.15; S.varietyUntil = now + 1800; }
+  const chaos = S.chaosUntil > now;
+  if (chaos) mul *= 1.3;
+  if (a.attention && facing) mul *= 1.1;
+  if (S.anger > 80) mul *= 0.75;
+  if (!seen) mul *= 0.8;
+  const gain = a.anger * mul * rand(0.85, 1.15);
+  const risk = a.sus * (seen ? (facing ? 1 : 0.85) : 0.3) * (1 + S.anger / 120) * (recent >= 2 ? 1.3 : 1);
+
+  const distinctBefore = [];
+  for (let i = S.history.length - 1; i >= 0 && distinctBefore.length < 2; i--){
+    const hid = S.history[i].id;
+    if (hid !== id && !distinctBefore.includes(hid)) distinctBefore.push(hid);
+  }
+
+  S.anger = Math.min(100, S.anger + gain);
+  S.sus = Math.min(100, S.sus + risk);
+  S.peak = Math.max(S.peak, S.anger);
+  S.peakSus = Math.max(S.peakSus, S.sus);
+  S.history.push({ id, t: now });
+  S.total++;
+  S.cd[id] = now + a.cd * 1000;
+  S.cdTotal[id] = a.cd * 1000;
+  S.lastAction = now;
+  if (a.chaos) S.chaosUntil = now + 6000;
+
+  const said = a.say ? pick(a.say) : null;
+  meSay(said, a.id === "question" || a.id === "homework" ? 2600 : 2000);
+  const fxFn = FX[id];
+  const busy = fxFn ? fxFn(count) : 0;
+  if (busy) S.busyUntil = now + busy;
+
+  if (!facing && (!a.sneaky || Math.random() < 0.4)) setTimeout(() => { if (S && !S.over && S.mode === "writing") setMode("facing"); }, 350);
+
+  pop("+" + Math.round(gain), S.tx + 40, 92, { fill: "#d63a2f", size: 30 });
+  addLog(a.label + (seen ? "" : " (unseen)"), `+${Math.round(gain)} anger · +${Math.round(risk)} risk`);
+
+  if (S.anger >= 100) { render(); return endGame("win", a); }
+  if (S.sus >= 100) { render(); return endGame("kicked", a); }
+
+  const tier = Math.min(4, tierOf(S.anger));
+  let line, warn = false, quiet = false;
+  if (S.sus >= 80 && !S.warned80) { S.warned80 = S.warned50 = true; line = pick(WARN80); warn = true; quiet = true; }
+  else if (S.sus >= 50 && !S.warned50) { S.warned50 = true; line = pick(WARN50); warn = true; quiet = true; }
+  else if (!seen) line = fill(pick(UNSEEN[tier]), a, count);
+  else if (count >= 3 && Math.random() < 0.45) line = fill(pick(REPEAT[tier]), a, count);
+  else if (distinctBefore.length === 2 && Math.random() < 0.28) {
+    const p1 = ACT[distinctBefore[1]], p2 = ACT[distinctBefore[0]];
+    line = pick(MEMORY[tier]).replace("{p1}", p1.pastS).replace("{p2}", p2.pastS).replace("{p3}", a.pastP);
+  }
+  else line = pick(a.lines[tier]);
+  teacherSay(line, tier, { delay: said ? 550 : 250, warn, quiet, logIt: true });
+  render();
+}
+
+function actInnocent(now){
+  if ((S.cd.innocent || 0) > now || S.busyUntil > now) return;
+  S.cd.innocent = now + INNOCENT.cd * 1000;
+  S.cdTotal.innocent = INNOCENT.cd * 1000;
+  const drop = 26;
+  S.sus = Math.max(0, S.sus - drop);
+  S.anger = Math.max(0, S.anger - 4);
+  meSay(pick(["*sits up straight, hands folded*", "*smiles angelically*", "*pretends to take notes*", "I love fractions, sir."]));
+  const tier = Math.min(4, tierOf(S.anger));
+  const lines = tier <= 1 ? ["Thank you, {n}. That's more like it.", "Good. Now let's keep it that way."]
+    : tier === 2 ? ["Hmm. Suspiciously quiet, {n}.", "Don't think I've forgotten, {n}."]
+    : ["Don't you give me that innocent face, {n}!", "That halo isn't fooling ANYONE, {n}!"];
+  addLog("Acted innocent", `−${drop} risk · −4 anger`);
+  teacherSay(pick(lines), tier, { delay: 500, logIt: true });
+  render();
+}
+
+/* ---------------- Rendering ---------------- */
+const btns = {};
+function buildButtons(){
+  const wrap = $("#actions");
+  const riskTxt = { low: "<b>Low risk</b>", med: "Medium risk", high: "<span class='hi'>High risk</span>" };
+  [...ACTIONS, INNOCENT].forEach(a => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = "act-" + a.id;
+    b.className = "act" + (a.id === "innocent" ? " innocent" : "");
+    const meta = a.id === "innocent" ? "Cools detention risk · calms him a bit" : `${a.sneaky ? "Sneaky · " : ""}${riskTxt[a.risk]}`;
+    b.innerHTML = `<span class="k">${a.key}</span><span class="n">${esc(a.label)}</span><span class="m">${meta}</span>`;
+    b.addEventListener("click", () => act(a.id));
+    wrap.appendChild(b);
+    btns[a.id] = b;
+  });
+}
+function renderLog(){
+  $("#log").innerHTML = S.log.map(e => `<li><span class="time">${e.t}</span><span class="what">${esc(e.what)} <span class="d">${esc(e.d)}</span></span>${e.said ? `<span class="said">${esc(e.said)}</span>` : ""}</li>`).join("");
+}
+function renderMemory(){
+  const items = ACTIONS.filter(a => S.counts[a.id]).map(a => `<span class="mem">${esc(a.mem)} <b>×${S.counts[a.id]}</b></span>`);
+  $("#memory").innerHTML = items.length ? items.join("") : `<span class="empty">Nothing yet. A clean record. For now.</span>`;
+}
+let lastMemKey = "";
+function render(){
+  const now = performance.now();
+  const anger = S.anger, tier = tierOf(anger);
+  const av = Math.floor(anger);
+  $("#angerVal").textContent = av + "%";
+  $("#angerFill").style.width = anger + "%";
+  $("#angerFill").style.backgroundSize = (anger > 0 ? (10000 / anger) : 100) + "% 100%";
+  $("#angerBar").setAttribute("aria-valuenow", av);
+  $("#angerState").textContent = TIER_NAMES[tier];
+  $("#angerState").style.color = TIER_COLORS[tier];
+  $("#angerVal").style.color = TIER_COLORS[tier];
+  [...$("#angerScale").children].forEach((s, i) => s.classList.toggle("on", i === Math.min(4, tier)));
+
+  const sus = S.sus, sv = Math.floor(sus);
+  $("#riskVal").textContent = sv + "%";
+  $("#riskFill").style.width = sus + "%";
+  $("#riskBar").setAttribute("aria-valuenow", sv);
+  const rm = $("#riskMeter");
+  rm.classList.toggle("warn", sus >= 50 && sus < 80);
+  rm.classList.toggle("danger", sus >= 80);
+  $("#riskState").textContent = sus >= 80 ? "Last warning" : sus >= 50 ? "On thin ice" : sus >= 25 ? "Suspected" : "Unsuspected";
+  $("#riskState").style.color = sus >= 80 ? "#d63a2f" : sus >= 50 ? "#d9771c" : "#5b6577";
+
+  // teacher face
+  const heat = Math.max(0, Math.min(1, (anger - 25) / 75));
+  const skin = lerpColor("f2c9a0", "e0402f", heat);
+  document.querySelectorAll(".tface").forEach(el => el.setAttribute("fill", skin));
+  const ang = anger * 0.28;
+  $("#browL").setAttribute("transform", `rotate(${ang.toFixed(1)} -5 -14)`);
+  $("#browR").setAttribute("transform", `rotate(${(-ang).toFixed(1)} 5 -14)`);
+  const pr = (3 - anger * 0.015).toFixed(2);
+  $("#pupL").setAttribute("r", pr); $("#pupR").setAttribute("r", pr);
+  const m = MOUTHS[Math.min(4, tier)];
+  const mouth = $("#mouth");
+  mouth.setAttribute("d", m.d); mouth.setAttribute("fill", m.fill);
+  $("#teeth").style.display = m.teeth ? "" : "none";
+  $("#tSteam").style.opacity = tier >= 3 ? 1 : 0;
+  $("#vein").style.display = tier >= 4 ? "" : "none";
+  $("#tInner").classList.toggle("shake", tier >= 4);
+  $("#stage").classList.toggle("t4", tier >= 4 && !S.over);
+
+  // clock
+  const elapsedMin = (LESSON_SECONDS - S.time) / LESSON_SECONDS * 45;
+  $("#minH").setAttribute("transform", `rotate(${(elapsedMin * 6).toFixed(1)})`);
+  $("#hourH").setAttribute("transform", `rotate(${(300 + elapsedMin * 0.5).toFixed(1)})`);
+  const left = Math.max(0, Math.ceil(45 - elapsedMin));
+  $("#clockText").textContent = `${lessonClock()} · ${left} min left`;
+  $("#clockChip .dot").style.background = left <= 10 ? "#d63a2f" : left <= 20 ? "#ef8a2b" : "#2f8f5b";
+
+  // status tags
+  const writing = S.mode === "writing";
+  $("#modeTag").classList.toggle("back", writing);
+  $("#modeText").textContent = writing ? "Back turned · writing" : "Watching the class";
+  $("#chaosTag").hidden = !(S.chaosUntil > now);
+  if (S.chaosUntil > now) $("#chaosTag").textContent = `Class chaos ×1.3 · ${Math.ceil((S.chaosUntil - now) / 1000)}s`;
+  $("#varietyTag").hidden = !(S.varietyUntil > now);
+
+  // buttons
+  const busy = S.busyUntil > now;
+  for (const id in btns){
+    const until = S.cd[id] || 0;
+    const frac = until > now ? (until - now) / (S.cdTotal[id] || 1) : 0;
+    btns[id].style.setProperty("--cd", frac.toFixed(3));
+    btns[id].disabled = !S.running || S.over || busy || frac > 0;
+  }
+  const memKey = JSON.stringify(S.counts);
+  if (memKey !== lastMemKey){ lastMemKey = memKey; renderMemory(); }
+}
+
+/* ---------------- Game loop ---------------- */
+let lastT = performance.now();
+function tick(){
+  const now = performance.now();
+  let dt = (now - lastT) / 1000; lastT = now;
+  if (dt > 0.5) dt = 0.1;
+  if (!S || !S.running || S.over || document.hidden) return;
+  S.time -= dt;
+  S.modeT -= dt;
+  if (S.modeT <= 0 && S.busyUntil < now) setMode(S.mode === "facing" ? "writing" : "facing");
+  const idle = (now - S.lastAction) / 1000;
+  if (idle > 3) S.anger = Math.max(0, S.anger - 1.5 * dt);
+  if (idle > 1.5) S.sus = Math.max(0, S.sus - 2.2 * dt);
+  if (S.sus < 35) S.warned50 = false;
+  if (S.sus < 65) S.warned80 = false;
+  if (S.mode === "facing" && now > S.tBubbleUntil + 2200 && now - S.lastChatter > 6500){
+    S.lastChatter = now;
+    const t = Math.min(4, tierOf(S.anger));
+    teacherSay(pick(IDLE[t]), t, { quiet: true, ms: 2600 });
+  }
+  if (S.mode === "writing" && now - S.lastSqueak > 1300){
+    S.lastSqueak = now;
+    pop("squeak", S.tx + 62, 92, { hand: true, size: 15, fill: "#5b6577", sw: 3 });
+  }
+  if (S.time <= 0){ S.time = 0; render(); return endGame("bell"); }
+  render();
+}
+setInterval(tick, 100);
+
+/* ---------------- Start / end ---------------- */
+function resetScene(){
+  $("#junk").innerHTML = ""; $("#doodles").innerHTML = ""; $("#lessonLines").innerHTML = ""; $("#fx").innerHTML = "";
+  const f = $("#meFig");
+  f.className.baseVal = "";
+  f.style.opacity = 1;
+  moveMe(SEAT[0], SEAT[1], SEAT[2]);
+  $("#stage").classList.remove("meltdown", "t4");
+  $("#kidsFront").classList.remove("laughing"); $("#kidsBack").classList.remove("laughing");
+  $("#tBubble").className = "bubble"; $("#mBubble").className = "bubble";
+}
+function start(name){
+  resetScene();
+  S = newState(name);
+  setMode("facing");
+  S.running = true;
+  $("#startOverlay").hidden = true;
+  $("#endOverlay").hidden = true;
+  renderLog(); lastMemKey = ""; render();
+  teacherSay("Good morning, class. Today: fractions! Isn't that exciting, {n}?", 0, { ms: 3200, quiet: true });
+  S.lastChatter = performance.now() + 2000;
+  btns.paper.focus({ preventScroll: true });
+}
+
+function endGame(kind, a){
+  S.over = true;
+  const used = LESSON_SECONDS - S.time;
+  render();
+  if (kind === "win"){
+    const top = ACTIONS.filter(x => S.counts[x.id]).sort((x, y) => S.counts[y.id] - S.counts[x.id]).slice(0, 3).map(x => x.melt).join(" ");
+    teacherSay(`That's IT! I QUIT! ${top} I'm going to be a GOAT FARMER! Goats don't ask about banana roots!`, 5, { ms: 4000, delay: 300 });
+    $("#stage").classList.add("meltdown");
+    pop("SNAP!", S.tx, 60, { fill: "#d63a2f", size: 54 });
+    setTimeout(() => $("#stage").classList.remove("meltdown"), 2600);
+    const best = parseFloat(store.get("tm-best") || "0");
+    if (!best || used < best) store.set("tm-best", String(used));
+    setTimeout(() => showReport(kind, used), 3000);
+  } else if (kind === "kicked"){
+    teacherSay("That's it! GET OUT! Principal's office. NOW!!", 5, { ms: 3200, delay: 300 });
+    setTimeout(() => {
+      walkPath([[300, 345, 1, ""], [120, 336, .95, ""], [78, 326, .9, ""]], 700, () => { $("#meFig").style.opacity = 0; });
+    }, 700);
+    setTimeout(() => showReport(kind, used), 3400);
+  } else {
+    pop("BRRRRRING!", 400, 40, { fill: "#d63a2f", size: 46 });
+    teacherSay("*exhales* Saved by the bell. Off you go, everyone.", 0, { ms: 3000, quiet: true });
+    setTimeout(() => showReport(kind, used), 2600);
+  }
+}
+
+function mmss(sec){ const s = Math.max(0, Math.round(sec)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function showReport(kind, used){
+  const n = esc(S.name);
+  const variety = ACTIONS.filter(a => S.counts[a.id]).length;
+  let rank, title, stamp, verdict;
+  if (kind === "win"){
+    rank = used < 90 ? "Legendary Menace" : used < 140 ? "Chaos Professional" : "Class Clown";
+    title = "The teacher has lost it!";
+    stamp = "Mission complete";
+    verdict = `Mr. Pemberton snapped after ${mmss(used)} of the lesson. He has left the building to start a goat farm.`;
+  } else if (kind === "kicked"){
+    rank = S.peak >= 70 ? "So Close Troublemaker" : "Amateur Troublemaker";
+    title = "Sent to the principal";
+    stamp = "Expelled from class";
+    verdict = `You got kicked out with Mr. Pemberton at ${Math.floor(S.peak)}% anger. Pace yourself and act innocent when the risk climbs.`;
+  } else {
+    rank = S.peak >= 80 ? "Almost Legendary" : S.peak >= 50 ? "Mild Nuisance" : "Teacher's Pet";
+    title = "Saved by the bell";
+    stamp = "Teacher survived";
+    verdict = `The lesson ended with his anger peaking at ${Math.floor(S.peak)}%. Keep the pressure on so he never gets a chance to calm down.`;
+  }
+  const incidents = ACTIONS.filter(a => S.counts[a.id]).map(a => `${esc(a.mem)} ×${S.counts[a.id]}`).join(", ") || "None. Suspicious.";
+  const best = parseFloat(store.get("tm-best") || "0");
+  $("#endCard").innerHTML = `
+    <div class="form-id"><span>Behaviour Incident Report · Form B-12</span><span>Room 12 · Period 3</span></div>
+    <span class="stamp">${stamp}</span>
+    <h2>${title}</h2>
+    <p>${verdict}</p>
+    <dl class="report">
+      <dt>Student</dt><dd>${n}</dd>
+      <dt>Rank</dt><dd><b>${rank}</b></dd>
+      <dt>Peak anger</dt><dd>${Math.floor(S.peak)}%</dd>
+      <dt>Time in class</dt><dd>${mmss(used)} of ${mmss(LESSON_SECONDS)}</dd>
+      <dt>Moves made</dt><dd>${S.total} (${variety} different tricks)</dd>
+      <dt>Incidents</dt><dd>${incidents}</dd>
+      ${best ? `<dt>Fastest meltdown</dt><dd>${mmss(best)}</dd>` : ""}
+    </dl>
+    ${S.lastTeacherLine ? `<div class="quote">Teacher's last words: “${fmt(S.lastTeacherLine)}”</div>` : ""}
+    <div class="btns"><button class="btn" type="button" id="againBtn">Play again</button><button class="btn ghost" type="button" id="nameBtn">Change name</button></div>`;
+  $("#endOverlay").hidden = false;
+  $("#againBtn").addEventListener("click", () => start(S.name));
+  $("#nameBtn").addEventListener("click", () => { $("#endOverlay").hidden = true; showStart(); });
+  $("#againBtn").focus();
+}
+
+function showStart(){
+  const best = parseFloat(store.get("tm-best") || "0");
+  const bl = $("#bestLine");
+  if (best){ bl.hidden = false; bl.textContent = `Your fastest meltdown so far: ${mmss(best)}.`; }
+  $("#startOverlay").hidden = false;
+  $("#nameInput").value = store.get("tm-name") || "";
+}
+$("#startForm").addEventListener("submit", e => {
+  e.preventDefault();
+  let name = $("#nameInput").value.replace(/[*<>]/g, "").trim() || "Jamie";
+  store.set("tm-name", name);
+  start(name);
+});
+document.addEventListener("keydown", e => {
+  if (e.target && (e.target.tagName === "INPUT" || e.ctrlKey || e.metaKey || e.altKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === "i") { act("innocent"); return; }
+  const a = ACTIONS.find(x => x.key === k);
+  if (a) act(a.id);
+});
+
+buildScene();
+buildButtons();
+S = newState("Jamie");
+render();
+showStart();
+})();
+</script>
+
+<!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
+<script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

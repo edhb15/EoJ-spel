@@ -11,6 +11,7 @@ Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen ne
 | [Smita från ledet](https://edhb15.github.io/EoJ-spel/games/smita-fran-ledet/index.html) | 3D • Action |
 | [Open World Sweden](https://edhb15.github.io/EoJ-spel/games/open-world-sweden/index.html) | 3D • Bilspel |
 | [Matchdag](https://edhb15.github.io/EoJ-spel/games/matchdag/docs/index.html) | 2D • Fotboll |
+| [Teacher Meltdown](https://edhb15.github.io/EoJ-spel/games/teacher-meltdown/index.html) | 2D • Kaos |
 
 ## Förhandsvisningar
 
