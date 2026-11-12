@@ -1,0 +1,82 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;overflow:hidden;background:#000}</style>
+<script type="importmap">{ "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/addons/" } }</script></head>
+<body><script type="module">
+import * as THREE from 'three';
+import { World } from '../src/world/world.js';
+import { Bike } from '../src/bike/bike.js';
+import { bikeById } from '../src/bike/specs.js';
+import { Emitter } from '../src/core/math.js';
+import { Particles, Skidmarks } from '../src/fx/particles.js';
+import { TrickSystem } from '../src/stunts/tricks.js';
+import { buildCourse, medalTimes, courseLength } from '../src/modes/modes.js';
+import { COURSES, CHALLENGES } from '../src/modes/data.js';
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 4000);
+const world = new World(renderer, scene);
+const t0 = performance.now();
+await world.build((f, t) => console.log('build', f, t, Math.round(performance.now()-t0)));
+const ev = new Emitter();
+const fx = { particles: new Particles(scene), skids: new Skidmarks(scene) };
+const bike = new Bike(scene, world, ev, fx);
+const q = new URLSearchParams(location.search);
+bike.setup(bikeById(q.get('bike') || 'mx'), { engine: 0, suspension: 0, tires: 0 }, '#ff6a00', '#1e6fe0');
+const tricks = new TrickSystem(ev, world.gapZones);
+const log = [];
+for (const n of ['takeoff','land','crash','loop','wheelieEnd']) ev.on(n, (d) => log.push(n + ' ' + JSON.stringify({q: d.quality, r: d.reason, at: d.airTime, rot: d.rot, imp: d.impact})));
+tricks.out.on('trick', (e) => log.push('TRICK ' + e.name + ' ' + e.pts));
+tricks.out.on('banked', (e) => log.push('BANK ' + e.total));
+const sp = world.spawns[q.get('spawn') || 'park'];
+bike.physics.reset(sp.x, sp.z, sp.yaw);
+window.__dev = { world, bike, scene, camera, renderer, log, tricks, THREE };
+window.__inp = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false, trick: false, trickEdge: false, hotkey: null, hotkeyEdge: false, hotkeyHeld: null, up: false, down: false, left: false, right: false };
+window.__sim = (secs, fn) => { const dt = 1/120; for (let i = 0; i < secs*120; i++) { if (fn) fn(i*dt); bike.physics.step(dt, window.__inp); tricks.update(dt, bike.physics); window.__inp.trickEdge = false; window.__inp.hotkeyEdge = false; } bike.update(1/60); };
+window.__render = (mode) => { bike.update(1/60);
+  const P = bike.physics; const c = P.mode === 'crash' ? P.cb.pos : P.com;
+  const h = mode === 'side' ? P.heading + Math.PI/2 : P.heading;
+  const d = mode === 'side' ? 9 : 6;
+  camera.position.set(c.x - Math.sin(h)*d, c.y + 2.2, c.z - Math.cos(h)*d);
+  camera.lookAt(c.x, c.y + 0.4, c.z);
+  world.sky.update(0.016, camera, c);
+  world.update(0.016, performance.now()/1000, c); world.cull(camera.position, 900);
+  fx.particles.update(0.016);
+  renderer.render(scene, camera);
+};
+window.__render();
+window.__drive = (kmh, secs, extra) => { const P = bike.physics; const out = []; let next = 0; __sim(secs, (t) => { if (P.mode === 'ground') { const v = P.s*3.6; __inp.throttle = v < kmh ? 1 : 0; __inp.brake = v > kmh + 8 ? 0.5 : 0; } if (extra) extra(t, P); if (t >= next) { next += 0.25; out.push([t.toFixed(2), P.mode, P.root.x.toFixed(1), P.root.y.toFixed(2), P.root.z.toFixed(1), (P.speed*3.6).toFixed(0)].join(' ')); } }); return out; };
+window.__bot = (pts, maxT, kmh, opts = {}) => {
+  const P = bike.physics; let i = 0; let t = 0; const log = []; let crashes = 0; let lastMode = P.mode;
+  const wrap = (a) => { a = (a + Math.PI) % (2*Math.PI); if (a < 0) a += 2*Math.PI; return a - Math.PI; };
+  while (t < maxT && i < pts.length) {
+    const tg = pts[i];
+    if (P.mode === 'crash') { if (lastMode !== 'crash') { crashes++; log.push('CRASH at ' + P.root.x.toFixed(0) + ',' + P.root.z.toFixed(0) + ' ' + P.crashReason + ' cp' + i); } if (P.crashT > 2.6) { const pr = i > 0 ? pts[i-1] : pts[0]; P.reset(pr.x, pr.z, Math.atan2(tg.x - pr.x, tg.z - pr.z)); } }
+    lastMode = P.mode;
+    const dx = tg.x - P.root.x, dz = tg.z - P.root.z; const d = Math.hypot(dx, dz);
+    if (d < (tg.r || 9)) { i++; continue; }
+    const want = Math.atan2(dx, dz); const err = wrap(want - P.heading);
+    __inp.steer = Math.max(-1, Math.min(1, -err * 2.5));
+    let target = kmh; if (Math.abs(err) > 0.5) target = Math.min(kmh, 35); if (Math.abs(err) > 1.2) target = 18;
+    if (i < pts.length - 1 && d < 45) { const n = pts[i+1]; const a2 = Math.atan2(n.x - tg.x, n.z - tg.z); if (Math.abs(wrap(a2 - want)) > 0.9) target = Math.min(target, opts.corner || 45); }
+    const v = P.s * 3.6; __inp.throttle = v < target ? 1 : 0; __inp.brake = v > target + 6 ? 1 : 0;
+    __sim(0.05); t += 0.05;
+  }
+  __inp.steer = 0; __inp.throttle = 0; __inp.brake = 0;
+  return { done: i >= pts.length, reached: i, of: pts.length, t: +t.toFixed(1), crashes, log: log.slice(0, 8), pos: [P.root.x.toFixed(0), P.root.z.toFixed(0)] };
+};
+window.__course = (id, kmh, bikeId) => {
+  if (bikeId) bike.setup(bikeById(bikeId), { engine: 0, suspension: 0, tires: 0 }, '#ff6a00', '#1e6fe0');
+  const def = COURSES.find(c => c.id === id); const c = buildCourse(world, def);
+  bike.physics.reset(c.start.x, c.start.z, c.start.yaw);
+  const pts = c.cps.map(p => ({ x: p.x, z: p.z, r: 10 }));
+  const r = __bot(pts, 400, kmh);
+  r.medals = medalTimes(world, def); r.len = Math.round(courseLength(c));
+  return id + ' ' + JSON.stringify(r);
+};
+window.__bikeById = bikeById;
+window.__shotReady = true;
+</script></body></html>
