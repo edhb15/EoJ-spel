@@ -115,6 +115,7 @@
   }
 
   function go(screen, tab) {
+    if (screen === 'hem' && S.inviteCode) screen = 'kompis';
     S.screen = screen;
     if (tab) S.tab[screen] = tab;
     if (location.hash !== '#' + screen) history.replaceState(null, '', '#' + screen);
@@ -316,6 +317,7 @@
       <main class="login">
         ${loginHero()}
         <section class="login-card">
+          ${S.inviteCode ? `<p class="invite-note">⚽ <b>Du är inbjuden till en match!</b> Välj eller skapa ditt lag först – sen kommer du direkt till matchen.</p>` : ''}
           ${teams.length ? `<div class="stack"><h2>Fortsätt med ditt lag</h2>
             ${teams.map(t => `<button type="button" class="opp" data-pick-team="${esc(t.name)}"><b>${esc(t.club)}</b><span class="muted">${esc(t.name)} · ${t.won} vinster</span></button>`).join('')}</div>` : ''}
           <form id="login-form" class="form" autocomplete="off">
@@ -633,6 +635,26 @@
   }
 
   // ------------------------------------------------------------------ kompis
+  // Inbjudningslänk: ...?rum=ABCD öppnar kompisskärmen med koden ifylld.
+  function inviteUrl(code) {
+    return location.origin + location.pathname + '?rum=' + encodeURIComponent(code) + '#kompis';
+  }
+  function sendInvite(code) {
+    const url = inviteUrl(code);
+    const text = `⚽ Spela mot mig i Matchdag! Tryck på länken så kommer du direkt till matchen (kod ${code}).`;
+    if (window.EOJ) return window.EOJ.share({ game: 'Matchdag', text, url });
+    if (navigator.share) return navigator.share({ title: 'Matchdag', text, url }).catch(() => {});
+    navigator.clipboard.writeText(text + '\n' + url).then(() => toast('Länken är kopierad – skicka den till kompisen!', 'good'), () => window.prompt('Kopiera länken:', url));
+  }
+  function inviteBanner() {
+    if (!S.inviteCode) return '';
+    return `<section class="panel center invite-banner">
+        <p class="eyebrow">Du är inbjuden!</p>
+        <h2>En kompis väntar på dig i match <span class="room-code inline">${esc(S.inviteCode)}</span></h2>
+        <button type="button" class="primary big" data-a="friend-join">Gå med i matchen</button>
+      </section>`;
+  }
+
   function renderFriends() {
     const f = S.friend || {};
     let body;
@@ -641,7 +663,8 @@
         <p class="eyebrow">Väntar på kompisen</p>
         <div class="room-code" aria-label="Matchkod">${esc(f.code)}</div>
         <p>Be din kompis välja <b>Spela mot kompis → Gå med</b> och skriva in koden.${f.wager ? ` Insats: ${coins(f.wager)} var – vinnaren tar ${coins(f.wager * 2 + FB.FRIEND_WIN_REWARD)}.` : ` Vinnaren får ${coins(FB.FRIEND_WIN_REWARD)}.`}</p>
-        <p class="muted small">Kompisen öppnar samma adress som du: <b>${esc(S.static ? location.origin + location.pathname : location.origin)}</b></p>
+        <button type="button" class="primary big" data-a="friend-invite">📤 Skicka inbjudan till kompisen</button>
+        <p class="muted small">Kompisen trycker på länken och hamnar direkt i matchen. Eller öppnar <b>${esc(S.static ? location.origin + location.pathname : location.origin)}</b> och skriver in koden.</p>
         <button type="button" class="ghost" data-a="friend-cancel">Avbryt</button>
       </section>`;
     } else if (f.state === 'connecting') {
@@ -649,7 +672,7 @@
     } else if (f.state === 'lobby') {
       body = renderLobby(f);
     } else {
-      body = `
+      body = `${inviteBanner()}
       <section class="two-col">
         <div class="panel">
           <h2>Skapa match</h2>
@@ -661,7 +684,7 @@
         <div class="panel">
           <h2>Gå med</h2>
           <p class="muted">Skriv in koden din kompis fick.</p>
-          <label>Matchkod<input id="f-code" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="ABCD" class="code-input"></label>
+          <label>Matchkod<input id="f-code" maxlength="4" autocapitalize="characters" autocomplete="off" placeholder="ABCD" class="code-input" value="${esc(S.inviteCode || '')}"></label>
           <button type="button" class="primary big" data-a="friend-join">Gå med</button>
         </div>
       </section>
@@ -1483,8 +1506,10 @@
         const wager = Math.max(0, Math.round(+$('#f-wager').value || 0));
         return friendConnect().then(n => { if (n) n.send({ t: 'create', wager }); });
       }
+      case 'friend-invite': if (S.friend && S.friend.code) sendInvite(S.friend.code); return;
       case 'friend-join': {
-        const code = $('#f-code').value.trim().toUpperCase();
+        const code = (($('#f-code') && $('#f-code').value) || S.inviteCode || '').trim().toUpperCase();
+        if (S.inviteCode) { S.inviteCode = null; history.replaceState(null, '', location.pathname + '#kompis'); }
         if (code.length !== 4) return toast('Koden är fyra bokstäver.', 'bad');
         return friendConnect().then(n => { if (n) { S.friend = { state: 'connecting' }; render(); n.send({ t: 'join', code }); } });
       }
@@ -1586,6 +1611,8 @@
   (async function boot() {
     S.static = await detectStatic();
     document.body.classList.toggle('static', S.static);
+    const rum = (new URLSearchParams(location.search).get('rum') || '').toUpperCase();
+    if (/^[A-Z]{4}$/.test(rum)) { S.inviteCode = rum; if (location.hash !== '#kompis') history.replaceState(null, '', location.pathname + location.search + '#kompis'); }
     const h = location.hash.slice(1);
     if (['hjul', 'arena', 'spela', 'turnering', 'kompis', 'lag', 'affar', 'marknad', 'dokument', 'installningar'].includes(h)) S.screen = h;
     if (S.token) {

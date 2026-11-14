@@ -180,6 +180,7 @@ export class Game {
     this.audio.music.play('menu');
     this.state = 'menu';
     this.ui.show('main', null, false);
+    if (/[?&]daily\b/.test(location.search)) this.ui.startDaily();
   }
 
   onScreen(name) {

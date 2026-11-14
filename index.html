@@ -306,6 +306,93 @@
             transform: translateX(5px);
         }
 
+        /* ---------- Badges ---------- */
+        .badges {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 2;
+            display: flex;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .badge {
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 14px #00000060;
+        }
+
+        .badge.hot { background: linear-gradient(90deg, #ff7a3d, #ff3d6e); color: #fff; }
+        .badge.new { background: #ffe14d; color: #1a1400; }
+        .badge[hidden] { display: none; }
+
+        /* ---------- Daily challenge ---------- */
+        .daily {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            max-width: 820px;
+            margin: -20px auto 40px;
+            padding: 16px 20px;
+            border: 1px solid #ff7a3d80;
+            border-radius: 16px;
+            background: linear-gradient(90deg, #ff7a3d22, #a970ff22);
+            color: var(--text);
+            text-decoration: none;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+            animation: fadeIn 0.8s ease both;
+        }
+
+        .daily:hover,
+        .daily:focus-visible { transform: translateY(-3px); border-color: #ff7a3d; outline: none; }
+        .daily-icon { font-size: 2rem; }
+        .daily-text { flex: 1; display: grid; gap: 3px; }
+        .daily-text > span { color: var(--muted); font-size: 0.95rem; }
+        .daily-text > span b { color: var(--text); }
+        .daily-go {
+            padding: 9px 16px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #ff7a3d, #ff3d6e);
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        /* ---------- Vote ---------- */
+        .vote {
+            max-width: 820px;
+            margin: 70px auto 0;
+            padding: 26px 24px;
+            border: 1px solid #30304b;
+            border-radius: 18px;
+            background: var(--card);
+            text-align: center;
+        }
+
+        .vote h2 { margin: 0 0 6px; font-size: 1.5rem; }
+        .vote > p { margin: 0 0 18px; color: var(--muted); }
+        .vote-options { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+        .vote-options button {
+            padding: 11px 16px;
+            border: 1px solid #3a3a5c;
+            border-radius: 12px;
+            background: #0b0b16;
+            color: var(--text);
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .vote-options button:hover:not(:disabled) { border-color: var(--blue); background: #5ee7ff15; }
+        .vote-options button:disabled { cursor: default; opacity: 0.55; }
+        .vote-options button.chosen { opacity: 1; border-color: var(--blue); background: #5ee7ff25; }
+        .vote .vote-thanks { margin: 16px 0 0; color: var(--blue); font-weight: 800; }
+
         /* ---------- Footer ---------- */
         footer {
             margin-top: 70px;
@@ -328,6 +415,9 @@
 
         /* ---------- Mobile ---------- */
         @media (max-width: 500px) {
+            .daily { flex-wrap: wrap; gap: 10px 14px; margin-top: -10px; }
+            .daily-go { margin-left: auto; }
+
             body {
                 padding: 20px 16px 40px;
             }
@@ -372,7 +462,50 @@
         </button>
     </header>
 
+    <a class="daily" href="games/stunt-rider-3d/index.html?daily">
+        <span class="daily-icon">📅</span>
+        <span class="daily-text">
+            <b>Dagens utmaning i Stunt Rider 3D</b>
+            <span>Samma plats för alla idag: <b id="daily-spot">…</b> – 90 sekunder, toppa dagens topplista!</span>
+        </span>
+        <span class="daily-go">Kör →</span>
+    </a>
+
     <main class="games">
+
+        <!-- Stunt Rider 3D -->
+        <article class="game-card" id="stunt" data-added="2026-11-12">
+            <span class="badges"><span class="badge hot">🔥 Populärast</span><span class="badge new" hidden>NYTT!</span></span>
+            <button class="share-btn" type="button" data-share="games/stunt-rider-3d/index.html" data-title="Stunt Rider 3D" aria-label="Dela Stunt Rider 3D">📤 Dela</button>
+            <a class="card-link" href="games/stunt-rider-3d/index.html" aria-label="Spela Stunt Rider 3D">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/stunt-rider-3d.mp4"
+                        poster="dependencies/previews/stunt-rider-3d.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
+
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
+                </div>
+
+                <div class="game-info">
+                    <span class="game-tag">3D • Motorcykel</span>
+                    <h2>Stunt Rider 3D</h2>
+                    <p>Gör volter, wheelies och tailwhips i en öppen värld full av ramper, halfpipe och loop – och lås upp nya motorcyklar!</p>
+
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
+                </div>
+            </a>
+        </article>
 
         <!-- Ski to Death 3D -->
         <article class="game-card" id="ski">
@@ -540,7 +673,8 @@
         </article>
 
         <!-- Teacher Meltdown -->
-        <article class="game-card" id="teacher">
+        <article class="game-card" id="teacher" data-added="2026-11-12">
+            <span class="badges"><span class="badge new" hidden>NYTT!</span></span>
             <button class="share-btn" type="button" data-share="games/teacher-meltdown/index.html" data-title="Teacher Meltdown" aria-label="Dela Teacher Meltdown">📤 Dela</button>
             <a class="card-link" href="games/teacher-meltdown/index.html" aria-label="Spela Teacher Meltdown">
                 <div class="game-preview">
@@ -572,45 +706,29 @@
             </a>
         </article>
 
-        <!-- Stunt Rider 3D -->
-        <article class="game-card" id="stunt">
-            <button class="share-btn" type="button" data-share="games/stunt-rider-3d/index.html" data-title="Stunt Rider 3D" aria-label="Dela Stunt Rider 3D">📤 Dela</button>
-            <a class="card-link" href="games/stunt-rider-3d/index.html" aria-label="Spela Stunt Rider 3D">
-                <div class="game-preview">
-                    <video
-                        src="dependencies/previews/stunt-rider-3d.mp4"
-                        poster="dependencies/previews/stunt-rider-3d.jpg"
-                        muted
-                        loop
-                        playsinline
-                        preload="none"
-                        aria-hidden="true"
-                    ></video>
-
-                    <div class="preview-overlay">
-                        <div class="play-icon">▶</div>
-                    </div>
-                </div>
-
-                <div class="game-info">
-                    <span class="game-tag">3D • Motorcykel</span>
-                    <h2>Stunt Rider 3D</h2>
-                    <p>Gör volter, wheelies och tailwhips i en öppen värld full av ramper, halfpipe och loop – och lås upp nya motorcyklar!</p>
-
-                    <div class="play-button">
-                        <span>Spela nu</span>
-                        <span>→</span>
-                    </div>
-                </div>
-            </a>
-        </article>
 
     </main>
+
+    <section class="vote" aria-labelledby="vote-title">
+        <h2 id="vote-title">Vilket spel ska vi göra härnäst?</h2>
+        <p>Rösta – vi bygger det som flest vill ha!</p>
+        <div class="vote-options">
+            <button type="button" data-vote="Skräckspel">👻 Skräckspel</button>
+            <button type="button" data-vote="Racingspel">🏎️ Racingspel</button>
+            <button type="button" data-vote="Plattformsspel">🍄 Plattformsspel</button>
+            <button type="button" data-vote="Zombiespel">🧟 Zombiespel</button>
+            <button type="button" data-vote="Fler kompisspel">🤝 Fler spel att köra mot kompisar</button>
+            <button type="button" data-vote="Fler banor">➕ Fler banor i spelen som finns</button>
+        </div>
+        <p class="vote-thanks" hidden>Tack för din röst! 🙌</p>
+    </section>
 
     <footer>
         <p>© 2026 Edwards och Johns spel · Made with 🎮</p>
     </footer>
 
+    <script src="shared/config.js"></script>
+    <script src="shared/eoj.js"></script>
     <div class="toast" role="status" aria-live="polite"></div>
 
     <script>
@@ -678,6 +796,44 @@
                 const url = new URL(button.dataset.share, SITE_URL).href;
                 const title = button.dataset.title;
                 share(url, title, `Spela ${title} gratis i webbläsaren!`);
+            });
+        });
+
+        // ---------- "NYTT!" badges: shown for 21 days after data-added ----------
+        document.querySelectorAll(".game-card[data-added]").forEach(card => {
+            const days = (Date.now() - new Date(card.dataset.added + "T00:00:00")) / 86400000;
+            const badge = card.querySelector(".badge.new");
+            if (badge && days >= 0 && days < 21) badge.hidden = false;
+        });
+
+        // ---------- Daily challenge spot ----------
+        // Must match DAILY_SPOTS in games/stunt-rider-3d/src/modes/modes.js (same order).
+        const DAILY_SPOTS = ["Stunt Park", "Kicker Alley", "Halfpipe", "Loop", "MX Track", "Rooftops", "Skate Plaza", "Mall Parking", "Airfield", "Industrial Zone", "Container Yard", "Sand Quarry", "Lake Jump"];
+        if (window.EOJ) {
+            document.getElementById("daily-spot").textContent = DAILY_SPOTS[EOJ.dailySeed("stunt-rider") % DAILY_SPOTS.length];
+        }
+
+        // ---------- Vote for the next game (counted as GoatCounter events) ----------
+        const voteButtons = document.querySelectorAll("[data-vote]");
+        const thanks = document.querySelector(".vote-thanks");
+        function showVoted(choice) {
+            voteButtons.forEach(b => {
+                b.disabled = true;
+                b.classList.toggle("chosen", b.dataset.vote === choice);
+            });
+            thanks.hidden = false;
+        }
+        let voted = null;
+        try { voted = localStorage.getItem("eoj:vote"); } catch (e) {}
+        if (voted) showVoted(voted);
+        voteButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                const choice = button.dataset.vote;
+                if (window.goatcounter && window.goatcounter.count) {
+                    window.goatcounter.count({ path: "rost-" + choice.toLowerCase().replace(/[^a-z0-9åäö]+/g, "-"), title: "röst: " + choice, event: true });
+                }
+                try { localStorage.setItem("eoj:vote", choice); } catch (e) {}
+                showVoted(choice);
             });
         });
 

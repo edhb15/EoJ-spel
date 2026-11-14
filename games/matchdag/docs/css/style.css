@@ -726,3 +726,9 @@ body.stage .panel { background: rgba(14, 42, 30, 0.86); backdrop-filter: blur(6p
 .arena-level.current .arena-state { color: var(--flag); }
 .arena-level.next { border: 1.5px dashed rgba(127, 227, 255, 0.6); }
 .arena-level.locked { opacity: 0.62; }
+
+/* Inbjudningslänkar (?rum=ABCD) */
+.room-code.inline { display: inline-block; font-size: 1.4em; letter-spacing: 0.15em; padding-left: 0.15em; vertical-align: middle; }
+.invite-banner { border: 2px solid var(--flag); margin-bottom: 16px; }
+.invite-banner h2 { margin: 6px 0 14px; }
+.invite-note { margin: 0; padding: 12px 14px; border-radius: 10px; border: 2px solid var(--flag); line-height: 1.4; }

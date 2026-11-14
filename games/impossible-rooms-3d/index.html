@@ -277,6 +277,9 @@
         if (window.__IR_STARTED) return;
         var t = e && e.target;
         if (t && (t.tagName === 'SCRIPT')) {
+          // Optional extras (visitor stats, share buttons) must never stop the game – ad blockers often block them.
+          if (t.hasAttribute('data-optional') || t.hasAttribute('data-goatcounter')) return;
+          try { if (new URL(t.src, location.href).origin !== location.origin) return; } catch (err) { /* ignore */ }
           showError('FAILED TO LOAD', '<p>A script could not be loaded: <code>' + (t.src || 'unknown') + '</code></p><p>Make sure the <code>lib/</code> folder sits next to <code>index.html</code>.</p>');
         }
       }, true);
@@ -293,6 +296,8 @@
       }, 6000);
     })();
   </script>
+  <script src="../../shared/config.js" data-optional></script>
+  <script src="../../shared/eoj.js" data-optional></script>
   <script type="module" src="game.js"></script>
     <!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
     <script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
