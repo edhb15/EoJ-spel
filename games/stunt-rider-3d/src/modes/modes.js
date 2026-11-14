@@ -3,6 +3,17 @@ import { COURSES, CHALLENGES, MEDAL_REWARD } from './data.js';
 import { formatTime, formatPoints, TAU } from '../core/math.js';
 import { RAMP_JUMP } from '../world/airfield.js';
 
+const EOJ = () => globalThis.EOJ;
+const GAME = 'Stunt Rider 3D';
+
+// Daily Challenge: everyone gets the same spot today.
+const DAILY_SPOTS = ['park', 'kickers', 'halfpipe', 'loop', 'mxtrack', 'rooftop', 'plaza', 'mall', 'airfield', 'industrial', 'containers', 'quarry', 'lake'];
+export function dailySpot() {
+  const e = EOJ();
+  const i = e ? e.dailySeed('stunt-rider') % DAILY_SPOTS.length : new Date().getDate() % DAILY_SPOTS.length;
+  return DAILY_SPOTS[i];
+}
+
 class Mode {
   constructor(game, opts = {}) {
     this.game = game;
@@ -108,11 +119,71 @@ export class StuntMode extends Mode {
         ['High score', formatPoints(Math.max(prev, this.score))],
       ],
       earned: this.earned,
+      share: {
+        game: GAME,
+        board: 'stunt-rider:stunt',
+        score: Math.round(this.score),
+        format: (n) => formatPoints(n) + ' pts',
+        shareText: `🏍️ I scored ${formatPoints(this.score)} points in Stunt Rider 3D (best combo ${formatPoints(this.best)}). Can you beat me?`,
+      },
     });
   }
   panel() {
     const left = Math.max(0, this.limit - this.time);
     return { title: this.title, timer: formatTime(left).replace(/\.\d+$/, ''), urgent: left < 15, lines: [`Score ${formatPoints(this.score)}`, `Best ${formatPoints(this.game.profile.data.best.stunt)}`] };
+  }
+}
+
+// ---------------------------------------------------------------------------
+export class DailyChallenge extends StuntMode {
+  get title() {
+    return 'DAILY CHALLENGE';
+  }
+  start() {
+    super.start();
+    this.limit = 90;
+    this.spot = dailySpot();
+    this.place(this.game.world.spawns[this.spot]);
+  }
+  end() {
+    this.game.tricks.flush();
+    const prof = this.game.profile;
+    const day = EOJ() ? EOJ().today() : '';
+    const daily = prof.data.best.daily || (prof.data.best.daily = {});
+    const prev = daily.day === day ? daily.score : 0;
+    const newBest = this.score > prev;
+    if (newBest) Object.assign(daily, { day, score: this.score });
+    prof.data.best.bestCombo = Math.max(prof.data.best.bestCombo, this.best);
+    prof.save();
+    const where = this.game.world.spawns[this.spot].name;
+    this.finish({
+      title: newBest ? "NEW BEST TODAY!" : 'TIME UP',
+      big: formatPoints(this.score),
+      bigLabel: 'POINTS • ' + where.toUpperCase(),
+      rows: [
+        ['Best combo', formatPoints(this.best)],
+        ['Tricks landed', this.tricksLanded],
+        ['Your best today', formatPoints(Math.max(prev, this.score))],
+      ],
+      earned: this.earned,
+      share: {
+        game: GAME,
+        board: 'stunt-rider:daily',
+        daily: true,
+        score: Math.round(this.score),
+        format: (n) => formatPoints(n) + ' pts',
+        shareText: `📅 Stunt Rider 3D daily challenge (${where}): ${formatPoints(this.score)} points. Same spot for everyone today – can you beat me?`,
+        url: 'https://edhb15.github.io/EoJ-spel/games/stunt-rider-3d/index.html?daily',
+      },
+    });
+  }
+  panel() {
+    const p = super.panel();
+    const d = this.game.profile.data.best.daily;
+    const today = EOJ() ? EOJ().today() : '';
+    p.title = this.title;
+    p.lines = [`Score ${formatPoints(this.score)}`, `Today's best ${formatPoints(d && d.day === today ? d.score : 0)}`];
+    return p;
   }
 }
 
@@ -255,6 +326,14 @@ export class TimeTrial extends Mode {
         ['Medal reward', reward ? '+' + formatPoints(reward) : '-'],
       ],
       earned: this.earned,
+      share: {
+        game: GAME,
+        board: 'stunt-rider:trial-' + id,
+        score: Math.round(t * 100) / 100,
+        lowerIsBetter: true,
+        format: (n) => formatTime(n),
+        shareText: `⏱ ${this.def.name} in ${formatTime(t)}${medal ? ' ' + { gold: '🥇', silver: '🥈', bronze: '🥉' }[medal] : ''} in Stunt Rider 3D. Can you go faster?`,
+      },
     });
   }
   panel() {
@@ -499,6 +578,13 @@ export class RampJump extends Mode {
       bigLabel: 'BEST DISTANCE',
       rows: this.results.map((r, i) => [`Attempt ${i + 1}`, `${r.dist.toFixed(1)} m  (${r.quality})  +${formatPoints(r.pts)}`]).concat([['Record', Math.max(prev, best).toFixed(1) + ' m']]),
       earned: this.earned,
+      share: {
+        game: GAME,
+        board: 'stunt-rider:ramp',
+        score: Math.round(best * 10) / 10,
+        format: (n) => n.toFixed(1) + ' m',
+        shareText: `🚀 I flew ${best.toFixed(1)} m off the Mega Ramp in Stunt Rider 3D. Can you fly further?`,
+      },
     });
   }
   panel() {
@@ -512,5 +598,5 @@ export class RampJump extends Mode {
   }
 }
 
-export const MODES = { free: FreeRide, stunt: StuntMode, trial: TimeTrial, challenge: Challenge, ramp: RampJump };
+export const MODES = { free: FreeRide, daily: DailyChallenge, stunt: StuntMode, trial: TimeTrial, challenge: Challenge, ramp: RampJump };
 export { TAU };

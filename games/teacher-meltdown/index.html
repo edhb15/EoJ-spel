@@ -1115,6 +1115,23 @@ function showReport(kind, used){
     </dl>
     ${S.lastTeacherLine ? `<div class="quote">Teacher's last words: “${fmt(S.lastTeacherLine)}”</div>` : ""}
     <div class="btns"><button class="btn" type="button" id="againBtn">Play again</button><button class="btn ghost" type="button" id="nameBtn">Change name</button></div>`;
+  // share + leaderboard (shared/eoj.js) – leaderboard = fastest meltdown
+  if (window.EOJ){
+    if (!EOJ.store.get("name") && EOJ.cleanName(S.name)) EOJ.store.set("name", EOJ.cleanName(S.name));
+    const win = kind === "win";
+    $("#endCard .btns").before(EOJ.resultPanel({
+      game: "Teacher Meltdown",
+      board: win ? "teacher-meltdown:fastest" : null,
+      score: win ? Math.round(used) : undefined,
+      lowerIsBetter: true,
+      format: n => mmss(n),
+      shareText: win
+        ? `🤯 I made the teacher quit in ${mmss(used)} in Teacher Meltdown. Rank: ${rank}. Can you do it faster?`
+        : kind === "kicked"
+          ? `😬 I got sent to the principal in Teacher Meltdown (teacher at ${Math.floor(S.peak)}% anger). Can you make him snap?`
+          : `🔔 Saved by the bell in Teacher Meltdown – the teacher only reached ${Math.floor(S.peak)}% anger. Can you make him snap?`,
+    }));
+  }
   $("#endOverlay").hidden = false;
   $("#againBtn").addEventListener("click", () => start(S.name));
   $("#nameBtn").addEventListener("click", () => { $("#endOverlay").hidden = true; showStart(); });
@@ -1151,6 +1168,8 @@ showStart();
 </script>
 
 <!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
+<script src="../../shared/config.js"></script>
+<script src="../../shared/eoj.js"></script>
 <script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>

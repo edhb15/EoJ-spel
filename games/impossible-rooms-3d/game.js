@@ -7945,6 +7945,16 @@ class Game {
     this.renderPass.scene = this.menu.scene;
     this.audio.startAmbient(AMBIENT_PROFILES.menu);
   }
+  // Share + leaderboard box (shared/eoj.js) placed above a results screen's buttons.
+  eojPanel(screenId, opts) {
+    const scr = document.getElementById(screenId);
+    const old = scr.querySelector('.eoj-panel');
+    if (old) old.remove();
+    if (!window.EOJ) return;
+    const panel = window.EOJ.resultPanel(Object.assign({ game: 'Impossible Rooms 3D', lowerIsBetter: true, format: (n) => formatTime(n) }, opts));
+    const actions = scr.querySelector('.panel-actions');
+    actions.parentNode.insertBefore(panel, actions);
+  }
   completeLevel() {
     if (this.state !== 'playing') return;
     const i = this.levelIndex;
@@ -7959,6 +7969,11 @@ class Game {
     document.getElementById('lc-title').textContent = `LEVEL ${i + 1} — ${this.level.meta.name}`;
     document.getElementById('lc-time').textContent = formatTime(t);
     document.getElementById('lc-best').textContent = prevBest == null || t < prevBest ? 'NEW BEST TIME' : `BEST ${formatTime(prevBest)}`;
+    this.eojPanel('level-complete', {
+      board: 'impossible-rooms:level-' + (i + 1),
+      score: Math.round(t * 10) / 10,
+      shareText: `🌀 I escaped level ${i + 1} (${this.level.meta.name}) of Impossible Rooms 3D in ${formatTime(t)}. Can you do it faster?`,
+    });
     this.ui.setLevel(i, this.level.meta.name);
     this.ui.flash(0x5dffb0, 0.35);
     this.ui.showScreen('level-complete');
@@ -8003,6 +8018,11 @@ class Game {
     const b = this.breakdown(0, PART_ONE_COUNT);
     document.getElementById('chapter-time').textContent = formatTime(b.total);
     document.getElementById('chapter-breakdown').innerHTML = b.html;
+    this.eojPanel('chapter-complete', {
+      board: 'impossible-rooms:part-1',
+      score: Math.round(b.total * 10) / 10,
+      shareText: `🌀 I escaped the facility in Impossible Rooms 3D in ${formatTime(b.total)}. Can you beat my time?`,
+    });
     this.showResults('chapter-complete', 'chapter');
   }
   finishGame() {
@@ -8012,6 +8032,11 @@ class Game {
     document.getElementById('victory-breakdown').innerHTML =
       `<span class="part">${PART_INFO[0].title}</span><span class="part">${formatTime(one.total)}</span>${one.html}` +
       `<span class="part">${PART_INFO[1].title}</span><span class="part">${formatTime(two.total)}</span>${two.html}`;
+    this.eojPanel('victory', {
+      board: 'impossible-rooms:full',
+      score: Math.round((one.total + two.total) * 10) / 10,
+      shareText: `🏆 I beat ALL of Impossible Rooms 3D in ${formatTime(one.total + two.total)}. Think you can do better?`,
+    });
     this.showResults('victory', 'victory');
   }
   respawn(msg, type = 'warn') {

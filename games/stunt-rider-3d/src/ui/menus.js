@@ -1,7 +1,7 @@
 // Menu screens built with plain DOM.
 import { BIKES, bikeById, PAINTS, PAINT_NAMES, SUITS, SUIT_NAMES, UPGRADES, statBars, effectiveSpec } from '../bike/specs.js';
 import { COURSES, CHALLENGES, MODE_INFO } from '../modes/data.js';
-import { medalTimes } from '../modes/modes.js';
+import { medalTimes, dailySpot } from '../modes/modes.js';
 import { formatPoints, formatTime } from '../core/math.js';
 import { STYLE } from '../stunts/tricks.js';
 import { CAM_NAMES } from '../camera/camera.js';
@@ -115,6 +115,7 @@ export class UI {
           'nav',
           { class: 'main-nav' },
           this.btn('PLAY', () => this.show('modes'), 'primary xl'),
+          this.btn('📅 DAILY CHALLENGE', () => this.startDaily()),
           this.btn('GARAGE', () => this.show('garage')),
           this.btn('SETTINGS', () => this.show('settings')),
           this.btn('CONTROLS', () => this.show('controls')),
@@ -138,6 +139,7 @@ export class UI {
     const best = this.profile.data.best;
     const stat = {
       free: `${this.profile.data.stars.length}/${this.game.stars.count} stars found`,
+      daily: `Today: ${this.game.world.spawns[dailySpot()].name}`,
       stunt: `High score ${formatPoints(best.stunt)}`,
       trial: `${Object.keys(best.medals).length}/${COURSES.length} medals`,
       challenge: `${Object.keys(this.profile.data.challenges).length}/${CHALLENGES.length} completed`,
@@ -554,6 +556,12 @@ export class UI {
     scr.append(h('div', { class: 'map-wrap' }, cv, side));
   }
 
+  startDaily() {
+    this.pending = { mode: 'daily', opts: {} };
+    this.stack = ['main', 'modes'];
+    this.show('bikes', null, false);
+  }
+
   // ---------------------------------------------------------------- results
   results(scr, r) {
     const g = this.game;
@@ -567,6 +575,7 @@ export class UI {
         h('div', { class: 'res-label' }, r.bigLabel || ''),
         h('div', { class: 'res-rows' }, ...(r.rows || []).map(([a, b]) => h('div', { class: 'res-row' }, h('span', {}, a), h('b', {}, String(b))))),
         h('div', { class: 'res-earned' }, 'POINTS EARNED ', h('b', {}, '+' + formatPoints(r.earned || 0))),
+        r.share && globalThis.EOJ ? globalThis.EOJ.resultPanel(r.share) : null,
         h(
           'div',
           { class: 'actions' },

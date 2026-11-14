@@ -482,6 +482,18 @@
     saveBest(best);
     $('res-record').textContent = rec;
     showBest();
+    // share + leaderboard (shared/eoj.js)
+    const oldPanel = document.querySelector('#results .eoj-panel');
+    if (oldPanel) oldPanel.remove();
+    if (window.EOJ) {
+      $('again-btn').before(EOJ.resultPanel({
+        game: 'Ski to Death 3D',
+        board: 'ski-to-death:score',
+        score,
+        format: n => n + ' pts',
+        shareText: `${inj.dead ? '☠' : '🩹'} I broke ${broken} bones in Ski to Death 3D${inj.dead ? ' and died' : ''} (score ${score}). Can you break more?`,
+      }));
+    }
     $('results').classList.remove('hidden');
   }
 

@@ -1613,6 +1613,17 @@
     let rec = '';
     if (s > best) { best = s; rec = '<br>🏆 Nytt rekord!'; try { localStorage.setItem('smita-best', best); } catch (e) { } $('best').textContent = best; }
     $('overtext').innerHTML = 'Du var fri i <b>' + s + ' sekunder</b><br>och åt <b>' + bunCount + '</b> kanelbullar 🥐' + rec;
+    // dela + topplista (shared/eoj.js)
+    const oldPanel = $('over').querySelector('.eoj-panel'); if (oldPanel) oldPanel.remove();
+    if (window.EOJ) {
+      $('againbtn').before(EOJ.resultPanel({
+        game: 'Smita från ledet',
+        board: 'smita:sekunder',
+        score: s,
+        format: n => n + ' s',
+        shareText: '🏃 Jag smet från ledet i ' + s + ' sekunder och åt ' + bunCount + ' kanelbullar innan läraren fångade mig! Klarar du längre?',
+      }));
+    }
     setTimeout(() => $('over').classList.remove('hidden'), 700);
   }
 

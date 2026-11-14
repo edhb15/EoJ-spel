@@ -99,6 +99,7 @@ export const CHALLENGES = [
 
 export const MODE_INFO = [
   { id: 'free', name: 'Free Ride', icon: '🌍', desc: 'Explore the whole map without limits. Find all 30 hidden stars and every named gap.' },
+  { id: 'daily', name: 'Daily Challenge', icon: '📅', desc: 'A new spot every day, the same for everyone. 90 seconds to top today\'s leaderboard.' },
   { id: 'stunt', name: 'Stunt Mode', icon: '🔥', desc: 'Three minutes to score as many points as you can. Chain tricks into huge combos.' },
   { id: 'trial', name: 'Time Trial', icon: '⏱', desc: 'Race through checkpoints on five courses. Earn bronze, silver and gold medals.' },
   { id: 'challenge', name: 'Challenges', icon: '🎯', desc: 'Specific stunt goals against the clock. Complete them all for big rewards.' },
