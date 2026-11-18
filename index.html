@@ -333,34 +333,6 @@
         .badge.desktop { background: #e8ecff; color: #14182e; }
         .badge[hidden] { display: none; }
 
-        /* Drawn preview for games without a video clip (Skyward) */
-        .sky-preview {
-            position: absolute;
-            inset: 0;
-            overflow: hidden;
-            background: linear-gradient(#2a5fa8 0%, #6fa8dc 55%, #f2c48d 82%, #3d5a3a 82%, #22361f 100%);
-        }
-
-        .sky-preview .sky-plane {
-            position: absolute;
-            left: 50%;
-            top: 42%;
-            font-size: 4.2rem;
-            transform: translate(-50%, -50%) rotate(-12deg);
-            filter: drop-shadow(0 10px 12px #00000055);
-            transition: transform 0.6s ease;
-        }
-
-        .sky-preview .cloud {
-            position: absolute;
-            font-size: 2.6rem;
-            opacity: 0.85;
-        }
-
-        .game-card:hover .sky-preview .sky-plane {
-            transform: translate(-40%, -60%) rotate(-18deg);
-        }
-
         /* ---------- Daily challenge ---------- */
         .daily {
             display: flex;
@@ -510,12 +482,15 @@
             <button class="share-btn" type="button" data-share="games/skyward/index.html" data-title="Skyward" aria-label="Dela Skyward">📤 Dela</button>
             <a class="card-link" href="games/skyward/index.html" aria-label="Spela Skyward (endast för dator)">
                 <div class="game-preview">
-                    <div class="sky-preview" aria-hidden="true">
-                        <span class="cloud" style="left: 8%; top: 14%;">☁️</span>
-                        <span class="cloud" style="right: 10%; top: 26%;">☁️</span>
-                        <span class="cloud" style="left: 22%; top: 58%; font-size: 1.8rem;">☁️</span>
-                        <span class="sky-plane">✈️</span>
-                    </div>
+                    <video
+                        src="dependencies/previews/skyward.mp4"
+                        poster="dependencies/previews/skyward.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
 
                     <div class="preview-overlay">
                         <div class="play-icon">▶</div>
@@ -834,7 +809,7 @@
         // Mouse: play on hover. Touch screens (no hover): play while the card is on screen.
         const canHover = window.matchMedia("(hover: hover)").matches;
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const cards = [...document.querySelectorAll(".game-card")].filter(card => card.querySelector("video"));
+        const cards = document.querySelectorAll(".game-card");
 
         if (canHover) {
             cards.forEach(card => {
