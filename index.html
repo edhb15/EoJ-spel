@@ -127,6 +127,8 @@
         .game-card:nth-child(5) { animation-delay: 0.4s; }
         .game-card:nth-child(6) { animation-delay: 0.5s; }
         .game-card:nth-child(7) { animation-delay: 0.6s; }
+        .game-card:nth-child(8) { animation-delay: 0.7s; }
+        .game-card:nth-child(9) { animation-delay: 0.8s; }
 
         .game-card:hover {
             transform: translateY(-9px);
@@ -328,6 +330,7 @@
 
         .badge.hot { background: linear-gradient(90deg, #ff7a3d, #ff3d6e); color: #fff; }
         .badge.new { background: #ffe14d; color: #1a1400; }
+        .badge.desktop { background: #e8ecff; color: #14182e; }
         .badge[hidden] { display: none; }
 
         /* ---------- Daily challenge ---------- */
@@ -472,6 +475,40 @@
     </a>
 
     <main class="games">
+
+        <!-- Skyward Flight Simulator -->
+        <article class="game-card" id="skyward" data-added="2026-11-18">
+            <span class="badges"><span class="badge desktop">🖥️ Endast för dator</span><span class="badge new" hidden>NYTT!</span></span>
+            <button class="share-btn" type="button" data-share="games/skyward/index.html" data-title="Skyward" aria-label="Dela Skyward">📤 Dela</button>
+            <a class="card-link" href="games/skyward/index.html" aria-label="Spela Skyward (endast för dator)">
+                <div class="game-preview">
+                    <video
+                        src="dependencies/previews/skyward.mp4"
+                        poster="dependencies/previews/skyward.jpg"
+                        muted
+                        loop
+                        playsinline
+                        preload="none"
+                        aria-hidden="true"
+                    ></video>
+
+                    <div class="preview-overlay">
+                        <div class="play-icon">▶</div>
+                    </div>
+                </div>
+
+                <div class="game-info">
+                    <span class="game-tag">3D • Flygsimulator</span>
+                    <h2>Skyward</h2>
+                    <p>Flyg passagerarplan, stridsflyg och fraktplan över en hel ö med städer, berg och nio flygplatser. Spelas med tangentbord – endast för dator.</p>
+
+                    <div class="play-button">
+                        <span>Spela nu</span>
+                        <span>→</span>
+                    </div>
+                </div>
+            </a>
+        </article>
 
         <!-- World Domination -->
         <article class="game-card" id="world" data-added="2026-11-16">
