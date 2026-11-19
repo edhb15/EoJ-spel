@@ -16,9 +16,11 @@ A chaotic, slightly comedic 3D open-world crime sandbox set in a cartoon version
 | Space | Jump · handbrake in a car |
 | E | Interact: rob stores and – with a weapon out – any pedestrian or police officer (hold), pick locks, steal / enter / exit cars, hide in dumpsters, buy food or a disguise |
 | Q / 1–4 / mouse wheel | Switch weapon: fists, baseball bat, crowbar, pistol |
-| F / left click | Use the weapon: shove, swing the bat/crowbar (smashes props and car windows), point the pistol (people panic) |
+| F / left click | Use the weapon: shove, swing the bat/crowbar (smashes props and car windows), fire the pistol |
+| Right mouse | Aim the pistol over the shoulder |
+| R | Reload the pistol (on foot) · car radio (in a car) |
 | M | City map |
-| H / R | Horn / car radio |
+| H | Horn |
 | Esc | Pause menu |
 
 ## How it works
@@ -30,7 +32,7 @@ A chaotic, slightly comedic 3D open-world crime sandbox set in a cartoon version
 
 ## Activities
 
-Mugging people with a weapon (+10%; robbing a cop +25% and they come after you), corner stores, pizzerias and the pawn shop (+25%), electronics and jewelry stores (+40%), the Second City Savings bank vault (+60%), ATMs (+25%), apartment back doors (+25%), warehouses and penthouses (+40%), the armored truck (+60%), parked cars / police cruisers / carjackings, street races (+40%), stunt ramps (+25%), speed cameras, graffiti and smashing street props (+10%).
+Mugging people with a weapon (+10%; robbing a cop +25% and they come after you), gunfire (+5%; knocking people flat +10%, cops +20% – slapstick, they get back up), corner stores, pizzerias and the pawn shop (+25%), electronics and jewelry stores (+40%), the Second City Savings bank vault (+60%), ATMs (+25%), apartment back doors (+25%), warehouses and penthouses (+40%), the armored truck (+60%), parked cars / police cruisers / carjackings, street races (+40%), stunt ramps (+25%), speed cameras, graffiti and smashing street props (+10%).
 
 ## Graphics settings
 

@@ -124,6 +124,15 @@
       tone('triangle', 1250, t + 0.02, 0.5, 0.06 * v, { pan: p });
     },
     click(t, v) { burst(t, 0.025, 0.3 * v, 'highpass', 4000); },
+    gun(t, v, p) {
+      // sharp crack + low thump + a short city echo
+      burst(t, 0.09, 0.9 * v, 'highpass', 1200, { pan: p, a: 0.001 });
+      burst(t, 0.22, 0.75 * v, 'lowpass', 2600, { pan: p, a: 0.001, to: 500 });
+      tone('sine', 140, t, 0.2, 0.7 * v, { to: 38, pan: p, a: 0.001 });
+      burst(t + 0.13, 0.35, 0.18 * v, 'lowpass', 900, { pan: -p * 0.5 });
+    },
+    reload(t, v) { burst(t, 0.03, 0.35 * v, 'bandpass', 2500, { q: 3 }); burst(t + 0.5, 0.04, 0.4 * v, 'bandpass', 1800, { q: 3 }); burst(t + 0.62, 0.03, 0.35 * v, 'highpass', 3500); },
+    ricochet(t, v, p) { tone('sine', 3200, t, 0.18, 0.08 * v, { to: 1800, pan: p }); burst(t, 0.05, 0.2 * v, 'highpass', 4000, { pan: p }); },
     unlock(t, v) { tone('square', 660, t, 0.08, 0.1 * v, { lp: 3000 }); tone('square', 990, t + 0.08, 0.15, 0.1 * v, { lp: 3000 }); },
     fail(t, v) { tone('sawtooth', 160, t, 0.35, 0.18 * v, { lp: 900 }); tone('sawtooth', 120, t + 0.12, 0.4, 0.18 * v, { lp: 900 }); },
     blip(t, v) { tone('sine', 880, t, 0.09, 0.12 * v); tone('sine', 1320, t + 0.06, 0.12, 0.1 * v); },

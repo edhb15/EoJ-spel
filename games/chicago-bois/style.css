@@ -147,6 +147,13 @@ kbd {
 
 #fps { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); font: 700 13px var(--ui); color: #9f9; }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; }
+#crosshair.gun { width: 22px; height: 22px; margin: -11px; background: none; border-radius: 0; }
+#crosshair.gun::before, #crosshair.gun::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 2px #000; }
+#crosshair.gun::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#crosshair.gun::after { top: 10px; left: 0; width: 22px; height: 2px; }
+#crosshair.gun.aim { transform: scale(0.7); }
+#weaponAmmo { display: block; font: 800 14px var(--ui); color: var(--gold); letter-spacing: 1px; }
+#weaponAmmo:empty { display: none; }
 
 #bigmapWrap { position: fixed; inset: 0; z-index: 3; background: rgba(5, 8, 14, 0.82); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
 .bm-head { font: 400 30px var(--title); letter-spacing: 2px; }
