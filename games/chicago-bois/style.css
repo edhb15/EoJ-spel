@@ -216,3 +216,23 @@ button.big:hover { background: #ff1f45; }
     #objectiveBox { transform: scale(0.85); transform-origin: top left; }
     #notes { top: 230px; width: 280px; }
 }
+
+/* small windows: shrink the HUD so the city stays visible */
+@media (max-height: 640px) {
+    #mapBox { transform: scale(0.72); transform-origin: bottom left; }
+    #wantedBox { transform: scale(0.72); transform-origin: top right; }
+    #objectiveBox { transform: scale(0.8); transform-origin: top left; }
+    #speedo { transform: scale(0.75); transform-origin: bottom right; }
+    #notes { top: 205px; transform: scale(0.8); transform-origin: top right; }
+    #bannerBig { font-size: 52px; }
+    #prompt { bottom: 90px; }
+}
+@media (max-height: 420px) {
+    #mapBox { transform: scale(0.5); }
+    #wantedBox { transform: scale(0.52); }
+    #objectiveBox { transform: scale(0.62); }
+    #speedo { transform: scale(0.55); }
+    #notes { top: 150px; transform: scale(0.62); }
+    #bannerBig { font-size: 40px; }
+    #bannerSmall { font-size: 16px; }
+}
