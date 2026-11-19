@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
     <canvas id="renderCanvas" tabindex="0"></canvas>
@@ -45,6 +45,8 @@
             <canvas id="minimap" width="220" height="220"></canvas>
             <div class="health"><div id="healthFill"></div><span>❤ <b id="healthTxt">100</b></span></div>
         </div>
+
+        <div id="weaponBox"><span id="weaponIcon">🏏</span><div><b id="weaponName">Baseball bat</b><small><kbd>Q</kbd> switch · <kbd>E</kbd> rob people</small></div></div>
 
         <div id="speedo" class="hidden">
             <div id="carName">SEDAN</div>
@@ -112,8 +114,9 @@
                 <div><kbd>Mouse</kbd></div><div>Look around</div>
                 <div><kbd>Shift</kbd></div><div>Sprint</div>
                 <div><kbd>Space</kbd></div><div>Jump · handbrake in a car</div>
-                <div><kbd>E</kbd></div><div>Interact · hold to rob · enter / exit cars · hide</div>
-                <div><kbd>F</kbd> / <kbd>Click</kbd></div><div>Shove (break free from cops)</div>
+                <div><kbd>E</kbd></div><div>Interact · hold to rob stores and people (weapon out) · enter / exit cars · hide</div>
+                <div><kbd>Q</kbd> / <kbd>1</kbd>–<kbd>4</kbd> / <kbd>Wheel</kbd></div><div>Switch weapon: fists, baseball bat, crowbar, pistol</div>
+                <div><kbd>F</kbd> / <kbd>Click</kbd></div><div>Use weapon: shove, swing the bat/crowbar, point the pistol</div>
                 <div><kbd>M</kbd></div><div>City map</div>
                 <div><kbd>H</kbd></div><div>Horn</div>
                 <div><kbd>R</kbd></div><div>Car radio on/off</div>
@@ -124,6 +127,7 @@
                 <li>Every crime fills the <b>wanted meter</b>. Small stuff gives +10%, robberies +25–40%, the bank vault and the armored truck +60%.</li>
                 <li>Fill all <b>five stars</b> to win. Each star makes the cops faster, smarter and meaner – at five stars a chopper joins the hunt.</li>
                 <li>Cops who see you will chase. <b>Break line of sight</b>, duck into alleys, hide in dumpsters or bushes, or buy a <b>disguise</b> to escape.</li>
+                <li>You always carry a <b>weapon</b>. With one out, walk up to anyone – even a cop – and hold <b>E</b> to rob them. The bat and crowbar also smash props and car windows.</li>
                 <li>If officers grab you, the <b>arrest meter</b> fills. Shove them away or run. If it fills up – or your health hits zero – you're <b>BUSTED</b>.</li>
                 <li>Crimes done while cops are chasing you give a <b>+25% heat bonus</b>. Risky… but fast.</li>
             </ul>
@@ -191,19 +195,19 @@
     <script src="../../shared/config.js"></script>
     <script src="../../shared/eoj.js"></script>
     <script src="lib/babylon.js"></script>
-    <script src="js/util.js?v=2"></script>
-    <script src="js/pools.js?v=2"></script>
-    <script src="js/audio.js?v=2"></script>
-    <script src="js/citytex.js?v=2"></script>
-    <script src="js/city.js?v=2"></script>
-    <script src="js/characters.js?v=2"></script>
-    <script src="js/vehicles.js?v=2"></script>
-    <script src="js/police.js?v=2"></script>
-    <script src="js/effects.js?v=2"></script>
-    <script src="js/activities.js?v=2"></script>
-    <script src="js/landmarks.js?v=2"></script>
-    <script src="js/hud.js?v=2"></script>
-    <script src="game.js?v=2"></script>
+    <script src="js/util.js?v=3"></script>
+    <script src="js/pools.js?v=3"></script>
+    <script src="js/audio.js?v=3"></script>
+    <script src="js/citytex.js?v=3"></script>
+    <script src="js/city.js?v=3"></script>
+    <script src="js/characters.js?v=3"></script>
+    <script src="js/vehicles.js?v=3"></script>
+    <script src="js/police.js?v=3"></script>
+    <script src="js/effects.js?v=3"></script>
+    <script src="js/activities.js?v=3"></script>
+    <script src="js/landmarks.js?v=3"></script>
+    <script src="js/hud.js?v=3"></script>
+    <script src="game.js?v=3"></script>
     <!-- GoatCounter: privacy-friendly visitor stats (no cookies) – https://eoj-spel.goatcounter.com -->
     <script data-goatcounter="https://eoj-spel.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>

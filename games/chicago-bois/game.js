@@ -309,6 +309,7 @@
   function makePlayer() {
     const h = new CB.Human(CB.playerLook(0));
     h.onStep = (run) => { if (!pl.inCar) CB.Audio.play('step', run ? 0.9 : 0.55); };
+    h.addWeapons();
     pl = game.player = {
       human: h, x: 0, y: 0, z: 0, vx: 0, vz: 0, vy: 0, yaw: 0, health: 100,
       inCar: false, car: null, hidden: false, hideIt: null, hideSpot: null, pose: null, poseT: 0,
@@ -319,7 +320,8 @@
   function resetPlayer() {
     const s = CB.City.playerSpawn;
     Object.assign(pl, { x: s.x, z: s.z, y: C.CURB, vx: 0, vz: 0, vy: 0, yaw: s.yaw, health: 100, inCar: false, car: null, hidden: false, hideIt: null, hideSpot: null,
-      pose: null, poseT: 0, stunT: 0, downT: 0, disguiseT: 0, look: 0, dead: false, lastHurt: -99 });
+      pose: null, poseT: 0, stunT: 0, downT: 0, disguiseT: 0, look: 0, dead: false, lastHurt: -99, swingT: 0 });
+    setWeapon('bat', true);
     pl.human.recolor(CB.playerLook(0));
     pl.human.setVisible(true);
     game.camYaw = s.yaw; game.camPitch = 0.28;
@@ -385,6 +387,12 @@
     pl.inCover = false;
     for (const cv of City.covers) if (M.dist(cv.x, cv.z, pl.x, pl.z) < cv.r + 0.6) { pl.inCover = true; break; }
     // animation
+    // melee swing: the hit lands part-way through the animation
+    if (pl.swingT > 0) {
+      pl.swingT -= dt;
+      pl.human.swingP = 1 - pl.swingT / SWING;
+      if (!pl.swingHit && pl.human.swingP > 0.5) { pl.swingHit = true; meleeHit(); }
+    }
     let pose = 'walk';
     if (pl.downT > 0) pose = 'fallen';
     else if (pl.poseT > 0 && pl.pose) pose = pl.pose;
@@ -940,13 +948,21 @@
       CB.Audio.init();
       if (game.state !== 'playing') return;
       if (document.pointerLockElement !== canvas) { lockPointer(); return; }
-      if (e.button === 0) shove();
+      if (e.button === 0) attack();
     });
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === canvas;
       if (!locked && game.wasLocked && game.state === 'playing') pause();
       game.wasLocked = locked;
     });
+    canvas.addEventListener('wheel', (e) => {
+      if (game.state !== 'playing' || document.pointerLockElement !== canvas) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - (game.wheelT || 0) < 120) return;
+      game.wheelT = now;
+      cycleWeapon(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
     window.addEventListener('resize', () => { engine.resize(); if (CB.HUD.bigOpen) CB.HUD.toggleBigMap(true); });
     if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
       $('menu').querySelector('.menu-foot').insertAdjacentHTML('afterbegin', '<b style="color:#ffd32a">⚠ This game needs a keyboard and mouse – play it on a computer.</b><br>');
@@ -979,7 +995,9 @@
     if (!first) return;
     switch (e.code) {
       case 'KeyE': interact(); break;
-      case 'KeyF': shove(); break;
+      case 'KeyF': attack(); break;
+      case 'KeyQ': cycleWeapon(1); break;
+      case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': if (!pl.inCar) setWeapon(WEAPONS[+e.code.slice(5) - 1]); break;
       case 'KeyM': CB.HUD.toggleBigMap(); break;
       case 'KeyH': if (pl.inCar) { CB.Audio.play('honk', 1); CB.Peds.scare(pl.x, pl.z, 12, 'flee'); } break;
       case 'KeyR':
@@ -1005,7 +1023,163 @@
       return;
     }
     if (!q) return;
-    if (q.car) carAction(q); else A.interact(q, game);
+    if (q.ped) { if (q.ok) mug(q); return; }
+    if (q.car) carAction(q); else if (q.it || q.prop) A.interact(q, game);
+  }
+
+  // =================================================================== weapons
+  const WEAPONS = ['fists', 'bat', 'crowbar', 'pistol'];
+  const WEAPON_INFO = {
+    fists: { icon: '👊', name: 'Fists' }, bat: { icon: '🏏', name: 'Baseball bat' },
+    crowbar: { icon: '🔧', name: 'Crowbar' }, pistol: { icon: '🔫', name: 'Pistol' },
+  };
+  CB.WEAPON_INFO = WEAPON_INFO;
+  const SWING = 0.45;
+  function setWeapon(w, quiet) {
+    if (pl.weapon === w && !quiet) return;
+    pl.weapon = w;
+    pl.human.setWeapon(w);
+    if (!quiet) CB.Audio.play('click', 0.7);
+  }
+  function cycleWeapon(dir) {
+    if (pl.inCar || pl.dead) return;
+    const i = WEAPONS.indexOf(pl.weapon);
+    setWeapon(WEAPONS[(i + dir + WEAPONS.length) % WEAPONS.length]);
+  }
+  game.setWeapon = setWeapon;
+
+  // Left click / F: shove, swing or point the gun.
+  function attack() {
+    if (pl.inCar || pl.hidden || pl.dead || pl.downT > 0 || CB.Activities.hold) return;
+    const w = pl.weapon;
+    if (w === 'fists') { shove(); return; }
+    if (w === 'pistol') { threaten(); return; }
+    if (pl.swingT > 0) return;
+    pl.swingT = SWING; pl.swingHit = false; pl.human.swingP = 0;
+    pl.pose = 'swing'; pl.poseT = SWING;
+    CB.Audio.play('whoosh', 0.7);
+  }
+
+  // Everything in front of the player within reach of the swing.
+  function meleeHit() {
+    const fx = Math.sin(pl.yaw), fz = Math.cos(pl.yaw);
+    const reach = pl.weapon === 'bat' ? 2.5 : 2.2, power = pl.weapon === 'bat' ? 7 : 5;
+    const inFront = (x, z, r) => { const dx = x - pl.x, dz = z - pl.z, d = Math.hypot(dx, dz); return d < reach + (r || 0) && (dx * fx + dz * fz) > -0.2 * d; };
+    let hit = false;
+    for (const c of CB.Police.foot) {
+      if (c.mode === 'knock' || c.mode === 'fallen' || !inFront(c.x, c.z)) continue;
+      c.knock(fx * power, fz * power, 4); hit = true;
+      CB.Police.bust = Math.max(0, CB.Police.bust - 0.5);
+      reward(10, 0, 'Clobbered a police officer', '🏏', 'assault');
+      CB.Police.startChase(pl, game);
+    }
+    for (const p of CB.Peds.list) {
+      if (p.mode === 'knock' || p.mode === 'fallen' || !inFront(p.x, p.z)) continue;
+      p.knock(fx * power, fz * power, 4); hit = true;
+      reward(10, 0, 'Bonked a pedestrian', '🏏', 'assault');
+      raiseAlarm(pl.x, pl.z, false, 'assault');
+    }
+    CB.City.nearProps(pl.x, pl.z, reach + 1, (p) => {
+      if (p.broken || !inFront(p.x, p.z, p.r)) return;
+      CB.Activities.breakProp(p, fx * 4, fz * 4, game, true); hit = true;
+    });
+    // dent cars (and set off their alarms)
+    for (const list of [CB.Traffic.parked, CB.Traffic.cars]) for (const c of list) {
+      if (c === pl.car || c.dead || Math.abs(c.x - pl.x) > 6 || Math.abs(c.z - pl.z) > 6) continue;
+      const tx = pl.x + fx * 1.2, tz = pl.z + fz * 1.2;
+      if (c.distTo(tx, tz) > 0.9) continue;
+      c.health = Math.max(5, c.health - 12); hit = true;
+      CB.FX.burst('glass', tx, 1.1, tz, 25); CB.Audio.play('glass', 0.8, tx, tz, 50);
+      if (c.mode === 'parked' && Math.random() < 0.5) { CB.Audio.play('alarmCar', 0.8, c.x, c.z, 70); raiseAlarm(c.x, c.z, true, 'car alarm'); }
+      else raiseAlarm(c.x, c.z, false, 'vandalism');
+      if (c.occupied && c.mode === 'traffic') { c.mode = 'wreck'; c.fleeT = 0.6; c.vf = 0; c.vx = c.vz = 0; }
+      reward(10, 0, 'Smashed a car window', '💥', 'damage');
+      break;
+    }
+    if (hit) { CB.Audio.play('punch', 1); CB.FX.shake(0.12); }
+  }
+
+  // Pistol: point it – people nearby freeze or panic.
+  function threaten() {
+    if (pl.poseT > 0 && pl.pose === 'aim') return;
+    pl.pose = 'aim'; pl.poseT = 0.9;
+    pl.yaw = game.camYaw;
+    const fx = Math.sin(pl.yaw), fz = Math.cos(pl.yaw);
+    let scared = 0;
+    for (const p of CB.Peds.list) {
+      const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz);
+      if (d > 14 || p.mode === 'knock' || p.mode === 'fallen' || p.mode === 'held') continue;
+      if (dx * fx + dz * fz > d * 0.5) { p.cower(M.rand(2, 3.5)); scared++; } else if (d < 8) { p.flee(pl.x, pl.z); scared++; }
+    }
+    if (scared) {
+      CB.Audio.play('hey', 0.8);
+      raiseAlarm(pl.x, pl.z, false, 'brandishing a weapon');
+      reward(5, 0, 'Waved a gun around', '🔫', 'brandish');
+    }
+  }
+
+  // Who can the player rob right now? (needs a weapon out)
+  function pedQuery() {
+    if (pl.inCar || pl.hidden || pl.dead) return null;
+    const armed = pl.weapon !== 'fists';
+    const range = pl.weapon === 'pistol' ? 7 : 2.8;
+    const fx = Math.sin(game.camYaw), fz = Math.cos(game.camYaw);
+    let best = null, bd = 1e9;
+    const consider = (p, isCop) => {
+      if (p.mode === 'knock' || p.mode === 'fallen' || p.mode === 'held' || (p.robbedUntil || 0) > game.time) return;
+      const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz);
+      if (d > (armed ? range : 2.2) || d >= bd) return;
+      if (d > 1.6 && dx * fx + dz * fz < d * 0.55) return; // must be roughly where you're looking
+      if (d > 3 && !CB.City.los(pl.x, pl.z, p.x, p.z)) return;
+      best = { p, isCop, d }; bd = d;
+    };
+    for (const p of CB.Peds.list) consider(p, false);
+    if (!CB.Police.hasActive()) for (const c of CB.Police.foot) consider(c, true);
+    if (!best) return null;
+    if (!armed) return best.d < 2 ? { d: best.d + 0.8, ok: false, text: 'Take out a weapon (Q) to rob people' } : null;
+    const who = best.isCop ? 'police officer' : 'pedestrian', heat = best.isCop ? 25 : 10;
+    return { ped: best.p, isCop: best.isCop, d: best.d + 0.6, ok: true, text: `Rob the ${who} <span class="heat">+${heat}% heat</span>` };
+  }
+
+  // Hold-up: the victim freezes with hands up, you hold E, they hand over their cash.
+  function mug(q) {
+    const p = q.ped, isCop = q.isCop;
+    const face = () => {
+      pl.yaw = Math.atan2(p.x - pl.x, p.z - pl.z);
+      p.yaw = Math.atan2(pl.x - p.x, pl.z - p.z);
+    };
+    face();
+    p.mode = 'held'; p.t = 1;
+    const pose = pl.weapon === 'pistol' ? 'aim' : 'raise';
+    CB.Audio.play('hey', 0.9, p.x, p.z, 30);
+    CB.Activities.startHold({ x: pl.x, z: pl.z }, isCop ? 2.2 : 1.6, isCop ? 'Robbing a police officer…' : 'Robbing the pedestrian…', pose, game, {
+      start: () => { if (!isCop) raiseAlarm(p.x, p.z, false, 'mugging'); },
+      tick: (t, dt) => {
+        if (p.mode === 'knock' || p.mode === 'fallen') { CB.Activities.cancelHold('They got away'); return; }
+        p.mode = 'held'; p.t = 0.6; face();
+        if (Math.random() < dt * 4) CB.FX.burst('money', p.x, 1.2, p.z, 2);
+      },
+      done: () => {
+        const cash = isCop ? M.randInt(150, 320) : Math.random() < 0.12 ? M.randInt(250, 600) : M.randInt(20, 140);
+        CB.FX.burst('money', p.x, 1.3, p.z, 35);
+        CB.Audio.play('cash', 0.9);
+        p.robbedUntil = game.time + 180;
+        if (isCop) {
+          p.mode = 'walk'; p.reroute();
+          reward(25, cash, 'Robbed a police officer!', '💰');
+          raiseAlarm(p.x, p.z, true, 'robbing an officer');
+          CB.Police.startChase(pl, game);
+        } else {
+          p.flee(pl.x, pl.z, M.rand(5, 8));
+          reward(10, cash, cash >= 250 ? 'Mugged a big shot – fat wallet!' : 'Mugged a pedestrian', '💰', 'mugging');
+        }
+      },
+      cancel: () => {
+        if (p.mode !== 'held') return;
+        if (isCop) { p.mode = 'walk'; p.reroute(); CB.Police.startChase(pl, game); }
+        else p.flee(pl.x, pl.z);
+      },
+    });
   }
 
   function shove() {
@@ -1232,7 +1406,9 @@
         if (!CB.Activities.hold && !CB.Activities.pick && !pl.dead) {
           const a = CB.Activities.query(game);
           const v = pl.inCar || pl.hidden ? null : carQuery();
+          const pq = pedQuery();
           q = a && (!v || a.d <= v.d) ? a : v;
+          if (pq && (!q || pq.d < q.d) && (pq.ok || !q)) q = pq;
           if (!q && pl.inCar && pl.car.speed < 3) q = { text: 'Get out of the car', ok: true, exit: true };
         }
         game.query = q && !q.exit ? q : null;

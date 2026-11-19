@@ -182,6 +182,14 @@
     e.eyeFill.style.width = (P.recog * 100) + '%';
     e.hide.classList.toggle('hidden', !pl.hidden && !pl.inCover);
     e.hide.textContent = pl.hidden ? '🙈 HIDING' : '🌿 IN COVER';
+    // weapon in hand
+    if (this._weapon !== pl.weapon && CB.WEAPON_INFO) {
+      this._weapon = pl.weapon;
+      const wi = CB.WEAPON_INFO[pl.weapon];
+      document.getElementById('weaponIcon').textContent = wi.icon;
+      document.getElementById('weaponName').textContent = wi.name;
+    }
+    document.getElementById('weaponBox').classList.toggle('in-car', !!pl.inCar);
     // speedometer
     if (pl.inCar) {
       e.speedo.classList.remove('hidden');
