@@ -39,6 +39,7 @@
       this.c = withColor ? new Float32Array(cap * 4).fill(1) : null;
       this.free = [];
       for (let i = cap - 1; i >= 0; i--) { this.free.push(i); this._hide(i); }
+      this.hw = 0; this.hwDirty = true; // high-water mark: only draw slots that were ever used
       mesh.thinInstanceSetBuffer('matrix', this.m, 16, false);
       if (withColor) mesh.thinInstanceSetBuffer('color', this.c, 4, false);
       mesh.alwaysSelectAsActiveMesh = true;
@@ -56,6 +57,7 @@
     alloc(col) {
       const i = this.free.pop();
       if (i === undefined) { console.warn('pool full', this.mesh.name); return -1; }
+      if (i >= this.hw) { this.hw = i + 1; this.hwDirty = true; }
       if (col && this.c) this.setColor(i, col);
       return i;
     }
@@ -71,6 +73,7 @@
       this.dc = true;
     }
     flush() {
+      if (this.hwDirty) { this.mesh.thinInstanceCount = Math.max(1, this.hw); this.hwDirty = false; }
       if (this.dm && this.hi >= this.lo) {
         // upload only the range of slots that changed this frame
         if (this.hi - this.lo > this.cap * 0.7 || !this.mesh.thinInstancePartialBufferUpdate) this.mesh.thinInstanceBufferUpdated('matrix');
@@ -83,31 +86,41 @@
   CB.DynPool = DynPool;
 
   // ---------------------------------------------------------------- StaticPool
+  // Instances are grouped into square cells; each cell becomes its own mesh (sharing the
+  // geometry and material) so the camera, shadow and glow passes can skip far-away cells.
+  const CELL = 250;
   class StaticPool {
     constructor(mesh, withColor) {
       this.mesh = mesh; this.withColor = withColor;
-      this.mats = []; this.cols = [];
+      this.cells = new Map(); this.meshes = [];
     }
     // Adds one transformed copy: centre (x,y,z), size (sx,sy,sz), rotation yaw/pitch/roll.
     add(x, y, z, sx, sy, sz, col, yaw, pitch, roll) {
       const R = rot(TMP9, yaw || 0, pitch || 0, roll || 0);
-      this.mats.push(
+      const ci = Math.floor(x / CELL), cj = Math.floor(z / CELL), key = ci * 1000 + cj;
+      let c = this.cells.get(key);
+      if (!c) { c = { m: [], c: [], cx: (ci + 0.5) * CELL, cz: (cj + 0.5) * CELL }; this.cells.set(key, c); }
+      c.m.push(
         R[0] * sx, R[1] * sx, R[2] * sx, 0,
         R[3] * sy, R[4] * sy, R[5] * sy, 0,
         R[6] * sz, R[7] * sz, R[8] * sz, 0,
         x, y, z, 1);
-      if (this.withColor) this.cols.push(col[0], col[1], col[2], 1);
+      if (this.withColor) c.c.push(col[0], col[1], col[2], 1);
     }
     finish() {
-      const n = this.mats.length / 16;
-      if (!n) { this.mesh.setEnabled(false); return; }
-      this.mesh.thinInstanceSetBuffer('matrix', new Float32Array(this.mats), 16, true);
-      if (this.withColor) this.mesh.thinInstanceSetBuffer('color', new Float32Array(this.cols), 4, true);
-      this.mesh.alwaysSelectAsActiveMesh = true;
-      this.mesh.isPickable = false;
-      bigBounds(this.mesh);
-      this.mesh.freezeWorldMatrix();
-      this.mats = null; this.cols = null;
+      for (const [key, c] of this.cells) {
+        const m = this.mesh.clone(this.mesh.name + '_' + key);
+        m.thinInstanceSetBuffer('matrix', new Float32Array(c.m), 16, true);
+        if (this.withColor) m.thinInstanceSetBuffer('color', new Float32Array(c.c), 4, true);
+        m.thinInstanceRefreshBoundingInfo(false);
+        m.isPickable = false;
+        m.freezeWorldMatrix();
+        m.doNotSyncBoundingInfo = true;
+        m.cellX = c.cx; m.cellZ = c.cz;
+        this.meshes.push(m);
+      }
+      this.mesh.setEnabled(false);
+      this.cells = null;
     }
   }
   CB.StaticPool = StaticPool;
@@ -189,17 +202,27 @@
   // Collects quads with colours/uvs, then builds one Mesh.
   let FLIP = false; // flip winding if faces render inside-out
   class Geo {
-    constructor() { this.p = []; this.n = []; this.u = []; this.c = []; this.i = []; }
+    // opts.world: size in metres of one texture repeat -> UVs are made from world positions
+    constructor(opts) { this.p = []; this.n = []; this.u = []; this.c = []; this.i = []; this.world = opts && opts.world; }
     get count() { return this.p.length / 3; }
+    _wuv(v, nrm) {
+      const s = 1 / this.world;
+      if (Math.abs(nrm[1]) > 0.5) this.u.push(v[0] * s, v[2] * s);
+      else if (Math.abs(nrm[0]) > 0.5) this.u.push(v[2] * s, v[1] * s);
+      else this.u.push(v[0] * s, v[1] * s);
+    }
     // a,b,c,d: [x,y,z] corners in order around the quad; nrm: [x,y,z]
-    quad(a, b, c, d, nrm, col, uv) {
+    // col: one colour, or cols: an array of four per-corner colours (rgb or rgba)
+    quad(a, b, c, d, nrm, col, uv, cols) {
       const base = this.p.length / 3;
       this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], d[0], d[1], d[2]);
       for (let k = 0; k < 4; k++) this.n.push(nrm[0], nrm[1], nrm[2]);
-      const cc = col || [1, 1, 1];
-      const al = cc.length > 3 ? cc[3] : 1;
-      for (let k = 0; k < 4; k++) this.c.push(cc[0], cc[1], cc[2], al);
+      for (let k = 0; k < 4; k++) {
+        const cc = cols ? cols[k] : (col || [1, 1, 1]);
+        this.c.push(cc[0], cc[1], cc[2], cc.length > 3 ? cc[3] : 1);
+      }
       if (uv) this.u.push(uv[0], uv[1], uv[2], uv[3], uv[4], uv[5], uv[6], uv[7]);
+      else if (this.world) { this._wuv(a, nrm); this._wuv(b, nrm); this._wuv(c, nrm); this._wuv(d, nrm); }
       else this.u.push(0, 0, 1, 0, 1, 1, 0, 1);
       // orient triangles so geometric normal matches nrm
       const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
@@ -216,7 +239,7 @@
       for (let k = 0; k < 3; k++) this.n.push(nrm[0], nrm[1], nrm[2]);
       const cc = col || [1, 1, 1];
       for (let k = 0; k < 3; k++) this.c.push(cc[0], cc[1], cc[2], 1);
-      this.u.push(0, 0, 1, 0, 1, 1);
+      if (this.world) { this._wuv(a, nrm); this._wuv(b, nrm); this._wuv(c, nrm); } else this.u.push(0, 0, 1, 0, 1, 1);
       const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
       const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
       const gx = uy * vz - uz * vy, gy = uz * vx - ux * vz, gz = ux * vy - uy * vx;
@@ -290,20 +313,20 @@
       const mk = (fn, mat, name) => { const m = fn(); m.name = name; m.material = mat; return m; };
 
       // Dynamic (updated every frame)
-      this.box = new DynPool(mk(box, this.matDyn, 'dBox'), 4200, true);
-      this.shiny = new DynPool(mk(box, this.matShiny, 'dShiny'), 900, true);
-      this.cyl = new DynPool(mk(() => cyl(12), this.matDyn, 'dCyl'), 1400, true);
+      this.box = new DynPool(mk(box, this.matDyn, 'dBox'), 8000, true);
+      this.shiny = new DynPool(mk(box, this.matShiny, 'dShiny'), 1300, true);
+      this.cyl = new DynPool(mk(() => cyl(12), this.matDyn, 'dCyl'), 4600, true);
       this.sph = new DynPool(mk(sph, this.matDyn, 'dSph'), 300, true);
       this.matGlowW = glow('gW', [1, 0.97, 0.85]);
       this.matGlowR = glow('gR', [1, 0.08, 0.05]);
       this.matGlowB = glow('gB', [0.1, 0.35, 1]);
       this.matGlowY = glow('gY', [1, 0.7, 0.1]);
       this.matGlowG = glow('gG', [0.15, 1, 0.35]);
-      this.gW = new DynPool(mk(box, this.matGlowW, 'dGW'), 400, false);
-      this.gR = new DynPool(mk(box, this.matGlowR, 'dGR'), 700, false);
-      this.gB = new DynPool(mk(box, this.matGlowB, 'dGB'), 200, false);
-      this.gY = new DynPool(mk(box, this.matGlowY, 'dGY'), 400, false);
-      this.gG = new DynPool(mk(box, this.matGlowG, 'dGG'), 300, false);
+      this.gW = new DynPool(mk(box, this.matGlowW, 'dGW'), 700, false);
+      this.gR = new DynPool(mk(box, this.matGlowR, 'dGR'), 1300, false);
+      this.gB = new DynPool(mk(box, this.matGlowB, 'dGB'), 260, false);
+      this.gY = new DynPool(mk(box, this.matGlowY, 'dGY'), 1000, false);
+      this.gG = new DynPool(mk(box, this.matGlowG, 'dGG'), 800, false);
       this.dyn = [this.box, this.shiny, this.cyl, this.sph, this.gW, this.gR, this.gB, this.gY, this.gG];
 
       // Static
@@ -315,7 +338,12 @@
       this.sLamp = new StaticPool(mk(box, this.matLamp, 'sLamp'), false);
       this.matBlink = glow('blink', [1, 0.05, 0.05]);
       this.sBlink = new StaticPool(mk(sph, this.matBlink, 'sBlink'), false);
-      this.statics = [this.sBox, this.sCyl, this.sSph, this.sCone, this.sLamp, this.sBlink];
+      // tower crown lights (cool white and warm gold), dimmed by day
+      this.matCrown = glow('crown', [0.55, 0.8, 1]);
+      this.sCrown = new StaticPool(mk(box, this.matCrown, 'sCrown'), false);
+      this.matCrown2 = glow('crown2', [1, 0.72, 0.35]);
+      this.sCrown2 = new StaticPool(mk(box, this.matCrown2, 'sCrown2'), false);
+      this.statics = [this.sBox, this.sCyl, this.sSph, this.sCone, this.sLamp, this.sBlink, this.sCrown, this.sCrown2];
 
       // Additive ground light pools (street lamps / headlights at night)
       const tex = new B.DynamicTexture('poolTex', { width: 128, height: 128 }, scene, true);
@@ -372,14 +400,20 @@
       this.ringYellow = new DynPool(plane('ringY', ringMat('ringY', [1, 0.8, 0.1])), 40, false);
       this.dyn.push(this.ringRed, this.ringGreen, this.ringYellow);
 
-      this.glowMeshes = [this.gW, this.gR, this.gB, this.gY, this.gG].map(p => p.mesh)
-        .concat([this.sLamp.mesh, this.sBlink.mesh]);
-      this.casters = [this.box.mesh, this.shiny.mesh, this.cyl.mesh, this.sph.mesh,
-        this.sBox.mesh, this.sCyl.mesh, this.sSph.mesh, this.sCone.mesh];
-      this.receivers = this.casters;
+      this.glowMeshes = [this.gW, this.gR, this.gB, this.gY, this.gG].map(p => p.mesh);
+      this.casters = [this.box.mesh, this.shiny.mesh, this.cyl.mesh, this.sph.mesh];
+      this.receivers = this.casters.slice();
     },
     flush() { for (const p of this.dyn) p.flush(); },
-    finishStatic() { for (const p of this.statics) p.finish(); },
+    // Builds the per-cell meshes. staticCasters: cells that may cast shadows (picked by distance each frame).
+    finishStatic() {
+      for (const p of this.statics) p.finish();
+      this.staticMeshes = [];
+      this.staticCasters = [];
+      for (const p of this.statics) for (const m of p.meshes) this.staticMeshes.push(m);
+      for (const p of [this.sBox, this.sCyl, this.sSph, this.sCone]) for (const m of p.meshes) { this.staticCasters.push(m); this.receivers.push(m); }
+      for (const p of [this.sLamp, this.sBlink, this.sCrown, this.sCrown2]) for (const m of p.meshes) this.glowMeshes.push(m);
+    },
   };
 
   // Write a single free-standing transform into a dyn pool slot.

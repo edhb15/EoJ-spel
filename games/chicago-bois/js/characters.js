@@ -185,7 +185,7 @@
         const opts = CROSS[this.k & 3];
         const o = opts[Math.random() < 0.5 ? 0 : 1];
         const nb = CB.City.blocks[(b.bi + o[0]) * C.N + (b.bj + o[1])];
-        if (b.bi + o[0] >= 0 && b.bi + o[0] < C.N && b.bj + o[1] >= 0 && b.bj + o[1] < C.N && nb) {
+        if (b.bi + o[0] >= 0 && b.bi + o[0] < C.N && b.bj + o[1] >= 0 && b.bj + o[1] < C.N && nb && !nb.noPeds) {
           this.setRoute(nb, o[2], Math.random() < 0.5 ? 1 : -1);
           return;
         }
@@ -197,6 +197,7 @@
     reroute() {
       let best = null, bd = 1e9;
       for (const b of CB.City.blocks) {
+        if (b.noPeds) continue;
         const d = M.dist2(this.x, this.z, b.cx, b.cz);
         if (d < bd) { bd = d; best = b; }
       }
@@ -308,7 +309,10 @@
     },
     // Put ped somewhere on a sidewalk loop between minD and maxD from (x,z).
     place(p, x, z, minD, maxD, view) {
-      const blocks = CB.City.blocks;
+      // candidate blocks: walkable blocks roughly within range
+      const all = CB.City.blocks;
+      const blocks = all.filter((b) => !b.noPeds && Math.abs(b.cx - x) < maxD + 40 && Math.abs(b.cz - z) < maxD + 40);
+      if (!blocks.length) blocks.push(...all.filter((b) => !b.noPeds));
       for (let tries = 0; tries < 40; tries++) {
         const b = blocks[Math.floor(Math.random() * blocks.length)];
         const k = Math.floor(Math.random() * 4);

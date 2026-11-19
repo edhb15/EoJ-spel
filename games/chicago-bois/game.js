@@ -83,7 +83,7 @@
       vec3 d = normalize(vPos);
       float h = d.y;
       vec3 col = mix(horizonColor, topColor, pow(clamp(h, 0.0, 1.0), 0.5));
-      if (h < 0.0) col = horizonColor * 0.85;
+      if (h < 0.0) col = horizonColor;
       vec3 sd3 = normalize(sunDir);
       float sd = max(dot(d, sd3), 0.0);
       col += sunColor * (pow(sd, 900.0) * 6.0 + pow(sd, 10.0) * 0.28) * (1.0 - night);
@@ -149,43 +149,95 @@
     for (const c of CB.City.chunkMeshes) c.mesh.receiveShadows = true;
   }
 
+  let pipeline = null;
   function applyQuality() {
     const q = CB.settings.quality;
     engine.setHardwareScalingLevel(q === 'low' ? 1.5 : q === 'high' ? 1 / Math.min(window.devicePixelRatio || 1, 1.5) : 1);
-    // shadows
+    // shadows: one large map that follows the player (4096 px over 320 m on High, 2048 px over 210 m on Medium).
+    // Poisson filtering is used because depth-compare (PCF) maps fail on some drivers.
     if (shadowGen) { shadowGen.dispose(); shadowGen = null; }
     if (q !== 'low') {
-      shadowGen = new B.ShadowGenerator(q === 'high' ? 2048 : 1024, sun);
-      shadowGen.usePercentageCloserFiltering = true;
-      shadowGen.filteringQuality = B.ShadowGenerator.QUALITY_LOW;
-      shadowGen.bias = 0.0025; shadowGen.normalBias = 0.03;
-      shadowGen.setDarkness(0.35);
+      sun.shadowFrustumSize = q === 'high' ? 320 : 210;
+      shadowGen = new B.ShadowGenerator(q === 'high' ? 4096 : 2048, sun);
+      shadowGen.usePoissonSampling = true;
+      shadowGen.bias = 0.0007; shadowGen.normalBias = 0.02;
+      shadowGen.setDarkness(0.12);
       casterT = 0;
     }
     // glow
     if (glow) { glow.dispose(); glow = null; }
     if (q !== 'low') {
       glow = new B.GlowLayer('glow', scene, { mainTextureRatio: q === 'high' ? 0.5 : 0.35, blurKernelSize: 28 });
-      const inc = CB.Pools.glowMeshes.concat([CB.City.signMesh, CB.Landmarks.bulbs], CB.Activities.glowMeshes);
-      for (const m of inc) if (m) glow.addIncludedOnlyMesh(m);
+      // Everything is drawn into the glow pass so buildings hide lights behind them,
+      // but only the light meshes actually glow (the rest is drawn black).
+      const inc = new Set(CB.Pools.glowMeshes.concat([CB.City.signMesh, CB.Landmarks.bulbs], CB.Activities.glowMeshes).filter(Boolean));
+      const sign = CB.City.signMesh;
+      glow.customEmissiveColorSelector = (mesh, subMesh, material, result) => {
+        if (mesh === sign) result.set(0.8, 0.8, 0.8, 1);
+        else if (inc.has(mesh) && material.emissiveColor) result.set(material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b, 1);
+        else result.set(0, 0, 0, 1);
+      };
+      for (const m of [skyMesh, CB.Landmarks.water, CB.City.aoMesh, CB.City.ground].concat(CB.Landmarks.riverMeshes)) if (m) glow.addExcludedMesh(m);
+      for (const p of [CB.Pools.headPool, CB.Pools.sirenPool, CB.Pools.ringRed, CB.Pools.ringGreen, CB.Pools.ringYellow]) glow.addExcludedMesh(p.mesh);
+      for (const m of CB.Pools.sLampPool.meshes) glow.addExcludedMesh(m);
+      // small non-glowing props don't need to block glow
+      for (const p of [CB.Pools.box, CB.Pools.cyl, CB.Pools.sph]) glow.addExcludedMesh(p.mesh);
+      for (const p of [CB.Pools.sCyl, CB.Pools.sSph, CB.Pools.sCone]) for (const m of p.meshes) glow.addExcludedMesh(m);
     }
-    const far = q === 'low' ? 380 : q === 'high' ? 700 : 540;
-    scene.fogEnd = far; scene.fogStart = far * 0.25;
+    // post-processing on High: MSAA, bloom on bright sky / neon, gentle sharpening
+    if (pipeline) { pipeline.dispose(); pipeline = null; }
+    if (q === 'high') {
+      try {
+        pipeline = new B.DefaultRenderingPipeline('pipe', true, scene, [camera]);
+        pipeline.samples = 4;
+        pipeline.fxaaEnabled = false;
+        pipeline.bloomEnabled = true;
+        pipeline.bloomThreshold = 0.78; pipeline.bloomWeight = 0.32; pipeline.bloomKernel = 64; pipeline.bloomScale = 0.5;
+        pipeline.sharpenEnabled = true; pipeline.sharpen.edgeAmount = 0.2;
+        pipeline.imageProcessingEnabled = true;
+      } catch (e) { pipeline = null; }
+    }
+    const far = q === 'low' ? 420 : q === 'high' ? 820 : 600;
+    scene.fogEnd = far; scene.fogStart = far * 0.22;
+    game.viewDist = far + 150;
     camera.maxZ = 3000;
   }
 
-  // Keep only nearby building chunks in the shadow map.
+  // Keep only nearby building chunks drawn and in the shadow map (the city is big; fog hides the rest).
   let casterT = 0;
   function updateCasters(dt, fx, fz) {
-    if (!shadowGen) return;
     casterT -= dt;
     if (casterT > 0) return;
     casterT = 0.5;
+    const cx = camera.position.x, cz = camera.position.z;
+    const vd = game.viewDist || 700;
+    for (const c of CB.City.chunkMeshes) c.mesh.setEnabled(M.dist(c.x, c.z, cx, cz) < vd);
+    for (const m of CB.Pools.staticMeshes) m.setEnabled(M.dist(m.cellX, m.cellZ, cx, cz) < vd);
+    if (!shadowGen) return;
     const rl = shadowGen.getShadowMap().renderList;
     rl.length = 0;
     for (const m of CB.Pools.casters) rl.push(m);
-    for (const c of CB.City.chunkMeshes) if (M.dist(c.x, c.z, fx, fz) < 230) rl.push(c.mesh);
+    for (const m of CB.Pools.staticCasters) if (M.dist(m.cellX, m.cellZ, fx, fz) < (CB.settings.quality === 'high' ? 360 : 300)) rl.push(m);
+    const reach = CB.settings.quality === 'high' ? 330 : 240;
+    for (const c of CB.City.chunkMeshes) if (c.kind !== 'ao' && M.dist(c.x, c.z, fx, fz) < reach) rl.push(c.mesh);
     rl.push(CB.Landmarks.bean, CB.Landmarks.wheel);
+  }
+
+  // Drop the graphics quality one step if the frame rate stays low (only if the player never chose it).
+  function autoQuality(dt) {
+    const S = CB.settings;
+    if (!S.autoQuality || S.quality === 'low' || game.state !== 'playing') return;
+    game.fpsT = (game.fpsT || 0) + dt;
+    if (game.fpsT < 3) return; // let things settle
+    game.fpsN = (game.fpsN || 0) + 1; game.fpsSum = (game.fpsSum || 0) + engine.getFps();
+    if (game.fpsT < 9) return;
+    const avg = game.fpsSum / game.fpsN;
+    game.fpsT = 0; game.fpsN = 0; game.fpsSum = 0;
+    if (avg >= 32) return;
+    S.quality = S.quality === 'high' ? 'medium' : 'low';
+    CB.saveSettings();
+    applyQuality();
+    CB.HUD.notify('⚙ Graphics set to ' + S.quality.toUpperCase(), 'For a smoother frame rate – change it in Settings.', 'yellow');
   }
 
   // =================================================================== day / night
@@ -216,7 +268,7 @@
     skyMat.setColor3('sunColor', new B.Color3(sc[0], sc[1], sc[2]));
     skyMat.setFloat('night', night);
     skyMat.setFloat('time', game.time);
-    scene.fogColor = new B.Color3(hor[0] * 0.92, hor[1] * 0.92, hor[2] * 0.95);
+    scene.fogColor = new B.Color3(hor[0], hor[1], hor[2]);
     scene.clearColor.set(hor[0], hor[1], hor[2], 1);
     // sun or moon light
     if (sy > -0.06) {
@@ -229,12 +281,12 @@
       sun.diffuse.set(0.55, 0.65, 1);
     }
     sun.specular.copyFrom(sun.diffuse);
-    hemi.intensity = 0.32 + 0.5 * day;
+    hemi.intensity = 0.26 + 0.34 * day;
     hemi.diffuse.set(M.lerp(0.42, 1, day), M.lerp(0.48, 0.98, day), M.lerp(0.75, 0.95, day));
     hemi.groundColor.set(M.lerp(0.12, 0.38, day), M.lerp(0.12, 0.36, day), M.lerp(0.2, 0.34, day));
     // shadow follows the focus point
     sun.position.set(fx - sun.direction.x * 220, -sun.direction.y * 220, fz - sun.direction.z * 220);
-    if (shadowGen) shadowGen.setDarkness(M.lerp(0.35, 0.65, night));
+    if (shadowGen) shadowGen.setDarkness(M.lerp(0.12, 0.6, night));
     // emissive stuff
     const City = CB.City, P = CB.Pools;
     const wn = night * 0.95;
@@ -243,6 +295,9 @@
     City.mats.sign.emissiveTexture.level = 0.75 + 0.45 * night;
     City.mats.sign.emissiveColor.set(0, 0, 0);
     P.matLamp.emissiveColor.set(M.lerp(0.35, 1, night), M.lerp(0.34, 0.88, night), M.lerp(0.32, 0.62, night));
+    const cn = 0.25 + 0.4 * night;
+    P.matCrown.emissiveColor.set(0.55 * cn, 0.8 * cn, 1 * cn);
+    P.matCrown2.emissiveColor.set(1 * cn, 0.72 * cn, 0.35 * cn);
     P.matLampPool.emissiveColor.set(0.95 * night * 0.55, 0.75 * night * 0.55, 0.45 * night * 0.55);
     P.matHeadPool.emissiveColor.set(0.9 * night * 0.5, 0.85 * night * 0.5, 0.7 * night * 0.5);
     P.matSirenPool.alpha = 0.99;
@@ -297,6 +352,7 @@
     const acc = pl.grounded ? 16 : 3;
     pl.vx = M.damp(pl.vx, tvx, acc, dt); pl.vz = M.damp(pl.vz, tvz, acc, dt);
     if (pl.knockV) { pl.vx += pl.knockV.x; pl.vz += pl.knockV.z; pl.knockV = null; }
+    const ox = pl.x, oz = pl.z;
     pl.x += pl.vx * dt; pl.z += pl.vz * dt;
     // collisions: buildings, props, cars
     City.resolve(pl, 0.38, pl.y, 0.45);
@@ -312,6 +368,7 @@
     }
     pl.x = M.clamp(pl.x, C.WORLD.x0 + 0.5, C.PIER.x1 - 0.5);
     pl.z = M.clamp(pl.z, C.WORLD.z0 + 0.5, C.WORLD.z1 - 0.5);
+    if (City.groundY(pl.x, pl.z) < -1) { pl.x = ox; pl.z = oz; pl.vx = pl.vz = 0; }
     // vertical
     const support = City.supportY(pl.x, pl.z, 0.38, pl.y, 0.45);
     if (pl.grounded && (k.Space) && !busy && pl.downT <= 0 && pl.stunT <= 0) { pl.vy = 6.4; pl.grounded = false; CB.Audio.play('whoosh', 0.3); }
@@ -860,7 +917,7 @@
       CB.saveSettings();
       if (after) after();
     });
-    onSet('setQuality', 'quality', String, () => applyQuality());
+    onSet('setQuality', 'quality', String, () => { CB.settings.autoQuality = false; CB.saveSettings(); applyQuality(); });
     onSet('setMaster', 'master', Number, () => CB.Audio.applyVolumes());
     onSet('setMusic', 'music', Number, () => CB.Audio.applyVolumes());
     onSet('setSens', 'sens', Number);
@@ -1014,9 +1071,9 @@
     game.menuT += dt;
     const t = game.menuT;
     const a = Math.sin(t * 0.04) * 0.95;
-    const R = 340;
-    camera.position.set(Math.cos(a) * R + 60, 46 + Math.sin(t * 0.11) * 16, Math.sin(a) * R);
-    tmpV.set(-30, 60 + Math.sin(t * 0.07) * 10, Math.sin(a) * 60);
+    const R = 380;
+    camera.position.set(Math.cos(a) * R + 60, 72 + Math.sin(t * 0.11) * 16, Math.sin(a) * R);
+    tmpV.set(-30, 62 + Math.sin(t * 0.07) * 10, Math.sin(a) * 60);
     camera.setTarget(tmpV);
     camera.fov = 0.9;
     CB.Audio.lx = camera.position.x; CB.Audio.lz = camera.position.z;
@@ -1189,6 +1246,7 @@
       CB.Landmarks.update(simDt, game, fx, fz);
       CB.City.updateSignals(game.time);
       updateCasters(simDt, fx, fz);
+      autoQuality(simDt);
       if (live) updateCamera(simDt); else menuCamera(simDt);
       if (playing || live) CB.HUD.update(game, simDt);
     }

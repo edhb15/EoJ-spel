@@ -5,13 +5,13 @@
   const B = BABYLON, M = CB.M, C = CB.C;
 
   const STORE_TYPES = {
-    corner: { dur: 3, heat: 25, cash: [250, 450], icon: '$', color: '#ff5252', names: ["LOU'S CORNER MART", 'QUIK-STOP MART', 'WINDY MART', "ROSIE'S MARKET", 'SOUTHSIDE GROCERY', '24/7 FOOD MART', 'BIG SHOULDERS MART'], label: 'corner store' },
-    pizza: { dur: 3, heat: 25, cash: [180, 320], icon: '$', color: '#ff5252', names: ["DEEP DISH DAN'S", 'PIZZA PALACE'], label: 'pizzeria', heal: 20 },
-    pawn: { dur: 3.5, heat: 25, cash: [500, 800], icon: '$', color: '#ff5252', names: ['MAXWELL ST PAWN'], label: 'pawn shop' },
-    electronics: { dur: 4.5, heat: 40, cash: [1200, 1800], icon: '📺', color: '#ff9f43', names: ['LAKESHORE ELECTRONICS', 'LOOP TECH'], label: 'electronics store', alarm: true },
-    jewelry: { dur: 5, heat: 40, cash: [2000, 3000], icon: '💎', color: '#ff9f43', names: ['WINDY CITY JEWELS', 'GOLD COAST DIAMONDS'], label: 'jewelry store', alarm: true },
-    bank: { dur: 8, heat: 60, cash: [4500, 6000], icon: '🏦', color: '#ff3838', names: ['SECOND CITY SAVINGS'], label: 'bank vault', alarm: true, big: true },
-    thrift: { service: true, icon: '👕', color: '#3ddc84', names: ['MAXWELL ST THRIFT', 'WICKER PARK VINTAGE'] },
+    corner: { dur: 3, heat: 25, cash: [250, 450], icon: '$', color: '#ff5252', names: ["LOU'S CORNER MART", 'QUIK-STOP MART', 'WINDY MART', "ROSIE'S MARKET", 'SOUTHSIDE GROCERY', '24/7 FOOD MART', 'BIG SHOULDERS MART', 'BRIDGEPORT MARKET', 'NORTH SIDE MART', "TONY'S FOOD & LIQ", 'LAKEVIEW MINI MART', 'PILSEN GROCERY'], label: 'corner store' },
+    pizza: { dur: 3, heat: 25, cash: [180, 320], icon: '$', color: '#ff5252', names: ["DEEP DISH DAN'S", 'PIZZA PALACE', 'TAVERN THIN CRUST'], label: 'pizzeria', heal: 20 },
+    pawn: { dur: 3.5, heat: 25, cash: [500, 800], icon: '$', color: '#ff5252', names: ['MAXWELL ST PAWN', 'RIVER PAWN & GOLD'], label: 'pawn shop' },
+    electronics: { dur: 4.5, heat: 40, cash: [1200, 1800], icon: '📺', color: '#ff9f43', names: ['LAKESHORE ELECTRONICS', 'LOOP TECH', 'MAG MILE GADGETS'], label: 'electronics store', alarm: true },
+    jewelry: { dur: 5, heat: 40, cash: [2000, 3000], icon: '💎', color: '#ff9f43', names: ['WINDY CITY JEWELS', 'GOLD COAST DIAMONDS', 'RIVERFRONT JEWELERS'], label: 'jewelry store', alarm: true },
+    bank: { dur: 8, heat: 60, cash: [4500, 6000], icon: '🏦', color: '#ff3838', names: ['SECOND CITY SAVINGS', 'LAKESIDE TRUST BANK'], label: 'bank vault', alarm: true, big: true },
+    thrift: { service: true, icon: '👕', color: '#3ddc84', names: ['MAXWELL ST THRIFT', 'WICKER PARK VINTAGE', 'LOGAN SQ SECONDHAND'] },
   };
   const DECOR = ['CAFE', 'BARBER', 'LAUNDROMAT', 'DELI', 'BOOKS', 'TACOS', 'DINER', 'HOUSE RECORDS', 'GYM', 'PHARMACY', 'HARDWARE',
     'ITALIAN BEEF', 'BLUES CLUB', 'JAZZ LOUNGE', 'BAKERY', 'DONUTS', 'FLOWERS', 'SHOES', 'TAILOR', 'POPCORN', 'PIEROGI', 'DIM SUM',
@@ -44,13 +44,13 @@
         chosen.push(f); k++;
       }
     };
-    take('bank', 1, (f) => f.downtown);
-    take('jewelry', 2, (f) => f.downtown || f.district === 'shops');
-    take('electronics', 2);
-    take('corner', 7, (f) => !f.downtown);
-    take('pizza', 2);
-    take('pawn', 1);
-    take('thrift', 2, (f) => !f.downtown);
+    take('bank', 2, (f) => f.downtown);
+    take('jewelry', 3, (f) => f.downtown || f.district === 'shops');
+    take('electronics', 3);
+    take('corner', 12, (f) => !f.downtown);
+    take('pizza', 3);
+    take('pawn', 2);
+    take('thrift', 3, (f) => !f.downtown);
     const decorIdx = DECOR.map((d) => addLabel(d));
     const decorFronts = [];
     for (const f of fronts) if (!f.used) { f.label = decorIdx[Math.floor(R() * decorIdx.length)]; decorFronts.push(f); }
@@ -74,7 +74,7 @@
     // ATMs on some decor storefront walls
     let atms = 0;
     for (const f of decorFronts) {
-      if (atms >= 7 || chosen.some((c) => M.dist(c.x, c.z, f.x, f.z) < 30)) continue;
+      if (atms >= 11 || chosen.some((c) => M.dist(c.x, c.z, f.x, f.z) < 30)) continue;
       if (R() > 0.25) continue;
       const ax = f.cx + f.ux * (f.w / 2 + 0.3) + f.nx * 0.2, az = f.cz + f.uz * (f.w / 2 + 0.3) + f.nz * 0.2;
       P.sBox.add(ax, f.yb + 1.2, az, Math.abs(f.ux) > 0.5 ? 0.8 : 0.4, 1.6, Math.abs(f.ux) > 0.5 ? 0.4 : 0.8, [0.2, 0.35, 0.6]);

@@ -30,7 +30,7 @@
 
     // ---------------------------------------------------------- Lake Michigan
     const water = B.MeshBuilder.CreateGround('lake', { width: 2400, height: 3000, subdivisions: 1 }, scene);
-    water.position.set(C.SHORE + 1200, -0.55, 0);
+    water.position.set(C.SHORE + 1200, City.waterY, 0);
     const wm = new B.StandardMaterial('lakeMat', scene);
     wm.diffuseColor = new B.Color3(0.08, 0.3, 0.48);
     wm.specularColor = new B.Color3(0.9, 0.9, 0.9); wm.specularPower = 160;
@@ -47,6 +47,42 @@
     water.isPickable = false;
     water.receiveShadows = true;
     this.water = water; this.waterMat = wm;
+    // the Chicago River (same water material; the main branch starts east of the south branch so they don't overlap)
+    const rivers = City.rivers;
+    this.riverMeshes = rivers.map((r, k) => {
+      const x0 = k === 0 ? rivers[1].x1 : r.x0, x1 = Math.min(r.x1, C.SHORE + 0.5);
+      const m = B.MeshBuilder.CreateGround('river' + k, { width: x1 - x0, height: r.z1 - r.z0 }, scene);
+      m.position.set((x0 + x1) / 2, City.waterY + 0.01, (r.z0 + r.z1) / 2);
+      const rm = wm.clone('riverMat' + k);
+      rm.diffuseColor = new B.Color3(0.1, 0.3, 0.27);
+      rm.reflectionFresnelParameters = new B.FresnelParameters();
+      rm.reflectionFresnelParameters.bias = 0.05; rm.reflectionFresnelParameters.power = 3;
+      rm.reflectionFresnelParameters.leftColor = new B.Color3(0.3, 0.3, 0.3);
+      rm.reflectionFresnelParameters.rightColor = new B.Color3(0.04, 0.04, 0.04);
+      rm.bumpTexture = wm.bumpTexture.clone();
+      rm.bumpTexture.uScale = (x1 - x0) / 17; rm.bumpTexture.vScale = (r.z1 - r.z0) / 17;
+      m.material = rm; m.isPickable = false; m.receiveShadows = true;
+      return m;
+    });
+    // tour boats cruising the main branch
+    this.boats = [];
+    const r1 = rivers[0], rx0 = rivers[1].x1 + 12, rx1 = C.SHORE + 60;
+    const P0 = CB.Pools;
+    for (let k = 0; k < 3; k++) {
+      const r = new CB.Rig();
+      const hull = [hex(0x1f3a5f), hex(0x7a1f1f), hex(0x22543d)][k];
+      r.add(P0.shiny, { o: [0, 0.45, 0], s: [4.2, 1.1, 16], c: hex(0xf2f2f0) });
+      r.add(P0.box, { o: [0, 0.2, 0], s: [4.25, 0.35, 16.05], c: hull });
+      r.add(P0.box, { o: [0, 1.25, 1.5], s: [3.6, 0.5, 9], c: hex(0xdad6cc) });
+      r.add(P0.box, { o: [0, 2.35, 1.5], s: [3.9, 0.12, 9.4], c: hull });
+      for (const dx of [-1.8, 1.8]) for (const dz of [-2.5, 1.5, 5.5]) r.add(P0.box, { o: [dx, 1.8, dz], s: [0.1, 1.1, 0.1], c: hex(0x333333) });
+      r.add(P0.box, { o: [0, 1.6, -6], s: [2.2, 1.6, 2.4], c: hex(0x2c3e50) });
+      r.add(P0.gY, { o: [0, 1.3, 1.5], s: [3.5, 0.2, 8.6] });
+      r.add(P0.gW, { o: [0, 1.0, 8.05], s: [0.6, 0.3, 0.1] });
+      const lane = k % 2 ? 4.5 : -4.5;
+      r.yaw = k % 2 ? -Math.PI / 2 : Math.PI / 2;
+      this.boats.push({ r, x: rx0 + (rx1 - rx0) * (k / 3), zc: (r1.z0 + r1.z1) / 2, z: (r1.z0 + r1.z1) / 2 + lane, dir: k % 2 ? -1 : 1, x0: rx0, x1: rx1, lane, win: r.parts[r.parts.length - 2] });
+    }
     // fountain basin water
     if (City.fountain) {
       const fw = B.MeshBuilder.CreateCylinder('fountainWater', { height: 0.1, diameter: 20.6, tessellation: 40 }, scene);
@@ -191,9 +227,21 @@
       nearest = Math.min(nearest, M.dist(p.x, p.z, focusX, focusZ));
     }
     CB.Audio.loop('train', Math.max(0, 1 - nearest / 90) * 0.35);
+    // tour boats: cruise along the river, turn around at the ends
+    for (const boat of this.boats) {
+      boat.x += boat.dir * dt * 5;
+      if (boat.x > boat.x1) boat.dir = -1; else if (boat.x < boat.x0) boat.dir = 1;
+      const r = boat.r;
+      r.x = boat.x; boat.z = M.damp(boat.z, boat.zc - boat.dir * 4.5, 0.5, dt); r.z = boat.z; r.y = CB.City.waterY + Math.sin(game.time * 1.3 + boat.lane) * 0.05;
+      r.yaw = M.turn(r.yaw, boat.dir > 0 ? Math.PI / 2 : -Math.PI / 2, dt * 0.6);
+      r.roll = Math.sin(game.time * 0.9 + boat.lane) * 0.02;
+      boat.win.vis = n > 0.25;
+      if (M.dist2(boat.x, boat.z, focusX, focusZ) < 400 * 400) r.update();
+    }
     // water ripples
     const bt = this.waterMat.bumpTexture;
     bt.uOffset += dt * 0.004; bt.vOffset += dt * 0.0025;
+    for (const rm of this.riverMeshes) { rm.material.bumpTexture.uOffset += dt * 0.02; }
     // refresh reflections now and then when near
     this.probeT -= dt;
     if (this.probeT <= 0) {
