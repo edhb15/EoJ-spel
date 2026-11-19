@@ -44,30 +44,37 @@
   };
 
   // ------------------------------------------------------------------ map image
-  const MX0 = -360, MZ1 = 360, MW = 860, MH = 720, K = 1; // 1 px per metre
+  const MX0 = -(C.OUT + 50), MZ1 = C.OUT + 50, MW = Math.ceil(C.PIER.x1 + 30 - MX0), MH = 2 * MZ1, K = 1; // 1 px per metre
   HUD.renderMap = function () {
     const cv = document.createElement('canvas');
     cv.width = MW * K; cv.height = MH * K;
     const c = cv.getContext('2d');
     const X = (x) => (x - MX0) * K, Y = (z) => (MZ1 - z) * K;
+    const rect = (x0, z0, x1, z1) => c.fillRect(X(x0), Y(z1), (x1 - x0) * K, (z1 - z0) * K);
+    const E = C.EDGE, O = C.OUT, F = C.FERRIS;
     c.fillStyle = '#1d6fa5'; c.fillRect(0, 0, cv.width, cv.height);
-    c.fillStyle = '#2b2e35'; c.fillRect(X(-360), Y(360), X(C.SHORE) - X(-360), Y(-360) - Y(360));
+    c.fillStyle = '#2b2e35'; rect(MX0, -MZ1, C.SHORE, MZ1);
     // beach strip
-    c.fillStyle = '#4c8a3c'; c.fillRect(X(303), Y(306), X(C.SHORE) - X(303), Y(-306) - Y(306));
-    c.fillStyle = '#d8c48f'; c.fillRect(X(327), Y(306), X(C.SHORE) - X(327), Y(-306) - Y(306));
-    c.fillStyle = '#2b2e35'; c.fillRect(X(303), Y(7), X(C.SHORE) - X(303), 14 * K);
+    c.fillStyle = '#4c8a3c'; rect(E, -O, C.SHORE, O);
+    c.fillStyle = '#d8c48f'; rect(E + 24, -O, C.SHORE, O);
+    c.fillStyle = '#2b2e35'; rect(E, -7, C.SHORE, 7);
     // pier
-    c.fillStyle = '#8a6a4a'; c.fillRect(X(C.SHORE), Y(9), X(C.PIER.x1) - X(C.SHORE), 18 * K);
-    c.fillRect(X(392), Y(28), 50 * K, 19 * K);
-    const typeCol = { park: '#3e7d32', bean: '#8c9a7a', fountain: '#3e7d32', parking: '#3c3f46', industrial: '#6b6457', downtown: '#5b5f68', skydeck: '#5b5f68', apartments: '#4d5148', shops: '#565159' };
+    c.fillStyle = '#8a6a4a'; rect(C.SHORE, C.PIER.z0, C.PIER.x1, C.PIER.z1); rect(F.x0, F.z0, F.x1, F.z1);
+    const typeCol = { park: '#3e7d32', bean: '#8c9a7a', fountain: '#3e7d32', parking: '#3c3f46', industrial: '#6b6457', downtown: '#5b5f68', skydeck: '#5b5f68',
+      midtown: '#585c64', bigjohn: '#5b5f68', apartments: '#4d5148', shops: '#565159', river: '#8f8b84' };
     for (const b of CB.City.blocks) {
-      c.fillStyle = '#8f8b84'; c.fillRect(X(b.x0), Y(b.z1), (b.x1 - b.x0) * K, (b.z1 - b.z0) * K);
-      c.fillStyle = typeCol[b.type] || '#555'; c.fillRect(X(b.ix0), Y(b.iz1), (b.ix1 - b.ix0) * K, (b.iz1 - b.iz0) * K);
+      c.fillStyle = '#8f8b84'; rect(b.x0, b.z0, b.x1, b.z1);
+      if (b.type !== 'river') { c.fillStyle = typeCol[b.type] || '#555'; rect(b.ix0, b.iz0, b.ix1, b.iz1); }
     }
     c.fillStyle = '#8f8b84';
-    c.fillRect(X(-360), Y(360), X(-303) - X(-360), Y(-360) - Y(360));
-    c.fillRect(X(-303), Y(360), X(303) - X(-303), Y(303) - Y(360));
-    c.fillRect(X(-303), Y(-303), X(303) - X(-303), Y(-360) - Y(-303));
+    rect(MX0, -MZ1, -E, MZ1); rect(-E, E, E, MZ1); rect(-E, -MZ1, E, -E);
+    // river + bridges
+    c.fillStyle = '#2a7fbf';
+    for (const r of CB.City.rivers) rect(r.x0, r.z0, r.x1, r.z1);
+    c.fillStyle = '#2b2e35';
+    const r1 = CB.City.rivers[0], r2 = CB.City.rivers[1];
+    for (let i = 0; i <= C.N; i++) { const x = CB.road(i); if (x - 7 > r1.x0) rect(x - 7, r1.z0, x + 7, r1.z1); }
+    for (let j = 0; j <= C.N; j++) { const z = CB.road(j); if (z - 7 < r1.z0) rect(r2.x0, z - 7, r2.x1, z + 7); }
     // buildings
     for (const col of CB.City.colliders) {
       if (col.kind !== 'building' && col.kind !== 'warehouse' && col.kind !== 'garage') continue;
@@ -84,8 +91,8 @@
     c.strokeStyle = 'rgba(242,194,48,0.35)'; c.lineWidth = 1;
     for (let i = 0; i <= C.N; i++) {
       const r = CB.road(i);
-      c.beginPath(); c.moveTo(X(r), Y(296)); c.lineTo(X(r), Y(-296)); c.stroke();
-      c.beginPath(); c.moveTo(X(-296), Y(r)); c.lineTo(X(296), Y(r)); c.stroke();
+      c.beginPath(); c.moveTo(X(r), Y(C.HALF)); c.lineTo(X(r), Y(-C.HALF)); c.stroke();
+      c.beginPath(); c.moveTo(X(-C.HALF), Y(r)); c.lineTo(X(C.HALF), Y(r)); c.stroke();
     }
     this.mapImg = cv;
     this.X = X; this.Y = Y;
@@ -324,7 +331,8 @@
     c.beginPath(); c.moveTo(0, -11); c.lineTo(8, 9); c.lineTo(0, 4); c.lineTo(-8, 9); c.closePath(); c.stroke(); c.fill();
     c.restore();
     c.fillStyle = '#fff'; c.font = 'bold 13px sans-serif'; c.textAlign = 'left';
-    c.fillText('LAKE MICHIGAN', X(350), Y(250));
-    c.fillText('THE LOOP', X(-60), Y(84));
+    c.fillText('LAKE MICHIGAN', X(C.SHORE + 20), Y(C.HALF * 0.8));
+    c.fillText('THE LOOP', X(-40), Y(84));
+    c.fillText('CHICAGO RIVER', X(40), Y(CB.City.rivers[0].z1 + 14));
   };
 })(window.CB);
