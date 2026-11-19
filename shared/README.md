@@ -46,3 +46,4 @@ Nyckeln är gjord för att synas i webbläsaren – den kan bara läsa och lägg
 | Impossible Rooms 3D | Tid per nivå, Del 1, hela spelet |
 | Smita från ledet | Sekunder innan man blir fångad |
 | Teacher Meltdown | Snabbaste sammanbrottet |
+| Chicago Bois | Poäng |
