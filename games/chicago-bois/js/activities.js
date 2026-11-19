@@ -162,7 +162,7 @@
       case 'store': return `Rob ${it.name} <span class="heat">+${it.T.heat}% heat</span>`;
       case 'thrift': return `Buy a disguise at ${it.name} <span class="cost">$100</span>`;
       case 'atm': return 'Hack the ATM <span class="heat">+25% heat</span>';
-      case 'breakin': return `Break into the ${it.name} <span class="heat">+${it.heat}% heat</span>`;
+      case 'breakin': return `${game.player.weapon === 'crowbar' ? 'Pry open' : 'Break into'} the ${it.name} <span class="heat">+${it.heat}% heat</span>`;
       case 'graffiti': return 'Spray a tag <span class="heat">+10% heat</span>';
       case 'hotdog': return 'Buy a Chicago-style hot dog <span class="cost">$15</span>';
       case 'race': return `Start street race: ${it.name} <span class="heat">+40% heat</span>`;
@@ -268,7 +268,20 @@
         break;
       case 'breakin':
         face();
-        this.startLockpick(it, game);
+        if (pl.weapon === 'crowbar') {
+          // the crowbar skips the lock-picking: just pry the door open
+          this.startHold(it, it.hard ? 3.2 : 2.4, 'Prying the door open…', 'work', game, {
+            start: () => { CB.Audio.play('click', 0.8); game.raiseAlarm(it.x, it.z, false, 'break-in'); },
+            tick: (t, dt) => { if (Math.random() < dt * 3) CB.Audio.play('click', 0.6); },
+            done: () => {
+              CB.Audio.play('door', 1, it.x, it.z, 20);
+              const cash = M.randInt(it.cash[0], it.cash[1]);
+              CB.FX.burst('money', it.b.wx, 1.3, it.b.wz, 40);
+              game.reward(it.heat, cash, `Pried open a ${it.name}`, '🔧');
+              it.cool = game.time + 300; this.placeRing(it, false);
+            },
+          });
+        } else this.startLockpick(it, game);
         break;
       case 'hotdog':
         if (pl.health >= 100) { CB.HUD.notify('🌭 Not hungry', 'Come back when you\'re hurt.', 'yellow'); return; }
