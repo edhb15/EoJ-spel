@@ -188,8 +188,15 @@
       const wi = CB.WEAPON_INFO[pl.weapon];
       document.getElementById('weaponIcon').textContent = wi.icon;
       document.getElementById('weaponName').textContent = wi.name;
+      document.getElementById('weaponHelp').innerHTML = pl.weapon === 'pistol' ? '<kbd>Click</kbd> shoot · <kbd>RMB</kbd> aim · <kbd>R</kbd> reload'
+        : pl.weapon === 'fists' ? '<kbd>Q</kbd> switch · <kbd>Click</kbd> shove' : '<kbd>Q</kbd> switch · <kbd>Click</kbd> swing · <kbd>E</kbd> rob';
     }
     document.getElementById('weaponBox').classList.toggle('in-car', !!pl.inCar);
+    const ammo = pl.weapon === 'pistol' ? (pl.reloadT > 0 ? 'RELOADING…' : pl.ammo + ' / ∞') : '';
+    if (this._ammo !== ammo) { this._ammo = ammo; document.getElementById('weaponAmmo').textContent = ammo; }
+    const ch = document.getElementById('crosshair');
+    ch.classList.toggle('gun', pl.weapon === 'pistol' && !pl.inCar);
+    ch.classList.toggle('aim', !!pl.aiming);
     // speedometer
     if (pl.inCar) {
       e.speedo.classList.remove('hidden');
