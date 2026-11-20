@@ -364,7 +364,7 @@
       c.seeT -= dt;
       if (c.seeT <= 0) {
         c.seeT = 0.18;
-        c.sees = c.mode !== 'fallen' && c.mode !== 'knock' && canSee(c.x, c.z, c.yaw, range, 2.4, pl, game.night);
+        c.sees = c.mode !== 'fallen' && c.mode !== 'knock' && c.mode !== 'held' && canSee(c.x, c.z, c.yaw, range, 2.4, pl, game.night);
       }
       if (c.sees) { sees = true; seeCount++; closest = Math.min(closest, M.dist(c.x, c.z, pl.x, pl.z)); }
     }
@@ -393,7 +393,8 @@
       if (sees && game.wanted > 0) {
         if (this.time - game.crimeT < 2 || lvl >= 2) this.startChase(pl, game);
         else {
-          this.recog += dt * seeCount * (closest < 12 ? 0.9 : 0.45) * (pl.disguiseT > 0 ? 0.5 : 1);
+          // a drawn gun gets you noticed faster
+          this.recog += dt * seeCount * (closest < 12 ? 0.9 : 0.45) * (pl.disguiseT > 0 ? 0.5 : 1) * (pl.weapon === 'pistol' ? 1.5 : 1);
           if (this.recog >= 1) this.startChase(pl, game);
         }
       } else this.recog = Math.max(0, this.recog - dt * 0.25);
@@ -413,7 +414,7 @@
     const run = RUN[lvl];
     let near = 0;
     for (const c of this.foot) {
-      if (c.mode === 'knock' || c.mode === 'fallen') {
+      if (c.mode === 'knock' || c.mode === 'fallen' || c.mode === 'held') {
         c.update(dt);
         if (c.mode === 'flee') { c.mode = 'walk'; c.reroute(); }
         continue;

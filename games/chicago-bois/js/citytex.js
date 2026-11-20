@@ -11,6 +11,26 @@
     return t;
   }
 
+  // Height map (grey image data) -> tangent-space normal map texture.
+  function normalMap(scene, name, img, S, strength) {
+    const t = new B.DynamicTexture(name, { width: S, height: S }, scene, true);
+    t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE;
+    const c = t.getContext(), out = c.createImageData(S, S), d = img.data;
+    const H = (x, y) => d[(((y + S) % S) * S + ((x + S) % S)) * 4] / 255;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+        const l = Math.hypot(dx, dy, 1), i = (y * S + x) * 4;
+        out.data[i] = (-dx / l * 0.5 + 0.5) * 255; out.data[i + 1] = (dy / l * 0.5 + 0.5) * 255;
+        out.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; out.data[i + 3] = 255;
+      }
+    }
+    c.putImageData(out, 0, 0);
+    t.update();
+    return t;
+  }
+  CB.normalMap = normalMap;
+
   // Facade tile = 8 bays x 8 floors, each cell 128 px (= 3 m x 3.5 m).
   CB.CityTex = {
     facade(scene, kind, seed) {
@@ -20,6 +40,7 @@
       const emis = dt(scene, 'facE_' + kind, S * N, S * N);
       const c = diff.getContext(), e = emis.getContext();
       e.fillStyle = '#000'; e.fillRect(0, 0, S * N, S * N);
+      const wins = []; // window rectangles, used for the gloss + normal maps
       for (let fy = 0; fy < N; fy++) {
         for (let fx = 0; fx < N; fx++) {
           const x = fx * S, y = fy * S;
@@ -30,7 +51,7 @@
           if (kind === 'office') {
             c.fillStyle = '#dcdcdc'; c.fillRect(x, y, S, S);
             c.fillStyle = '#bdbdbd'; c.fillRect(x, y + S - 14, S, 14);
-            win(c, x + 12, y + 18, S - 24, S - 40, R, blind);
+            win(c, x + 12, y + 18, S - 24, S - 40, R, blind, wins);
             if (lit) { e.fillStyle = lc; e.fillRect(x + 14, y + 20 + (S - 44) * blind, S - 28, (S - 44) * (1 - blind)); }
           } else if (kind === 'brick') {
             c.fillStyle = '#cfcfcf'; c.fillRect(x, y, S, S);
@@ -40,14 +61,14 @@
               for (let k = 0; k < 6; k++) c.fillRect(x + ((k * 24 + (r % 2) * 12) % S), y + r * 8, 1, 8);
             }
             c.fillStyle = '#eeeeee'; c.fillRect(x + 30, y + 20, 68, 6); c.fillRect(x + 28, y + 104, 72, 7);
-            win(c, x + 34, y + 26, 60, 78, R, blind);
+            win(c, x + 34, y + 26, 60, 78, R, blind, wins);
             c.fillStyle = '#e6e6e6'; c.fillRect(x + 63, y + 26, 2, 78); c.fillRect(x + 34, y + 62, 60, 2);
             if (lit) { e.fillStyle = lc; e.fillRect(x + 36, y + 28 + 74 * blind, 56, 74 * (1 - blind)); }
           } else if (kind === 'stone') {
             c.fillStyle = '#e8e2d6'; c.fillRect(x, y, S, S);
             c.fillStyle = '#d4cbbb'; c.fillRect(x, y + S - 10, S, 10); c.fillRect(x, y + 4, S, 3);
             for (const wx of [18, 70]) {
-              win(c, x + wx, y + 22, 40, 86, R, blind);
+              win(c, x + wx, y + 22, 40, 86, R, blind, wins);
               if (lit) { e.fillStyle = lc; e.fillRect(x + wx + 2, y + 24 + 82 * blind, 36, 82 * (1 - blind)); }
             }
           } else { // glass curtain wall
@@ -55,6 +76,7 @@
             g.addColorStop(0, '#9fb9cf'); g.addColorStop(0.5, '#5f7e9b'); g.addColorStop(1, '#86a6c2');
             c.fillStyle = g; c.fillRect(x, y, S, S);
             c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(x + 8, y + 8, 30, S - 30);
+            wins.push([x + 4, y + 5, S - 6, S - 28]);
             c.fillStyle = '#2e3842'; c.fillRect(x, y, S, 5); c.fillRect(x, y, 4, S); c.fillRect(x + 62, y, 2, S);
             c.fillStyle = '#3e4b57'; c.fillRect(x, y + S - 22, S, 22);
             if (lit) { e.fillStyle = lc; e.globalAlpha = 0.75; e.fillRect(x + 4, y + 5, S - 6, S - 28); e.globalAlpha = 1; }
@@ -62,7 +84,23 @@
         }
       }
       diff.update(); emis.update();
-      return { diff, emis };
+      // gloss map (windows shiny, walls matte) and normal map (windows set back into the wall)
+      const M2 = 512, k = M2 / (S * N);
+      const spec = dt(scene, 'facS_' + kind, M2, M2);
+      const sc = spec.getContext();
+      sc.fillStyle = kind === 'glass' ? '#333' : '#0c0c0c'; sc.fillRect(0, 0, M2, M2);
+      sc.fillStyle = '#e0e0e0';
+      for (const w of wins) sc.fillRect(w[0] * k, w[1] * k, w[2] * k, w[3] * k);
+      spec.update();
+      const hc = document.createElement('canvas'); hc.width = hc.height = M2;
+      const hx = hc.getContext('2d');
+      hx.fillStyle = '#fff'; hx.fillRect(0, 0, M2, M2);
+      for (const w of wins) {
+        hx.fillStyle = '#9a9a9a'; hx.fillRect(w[0] * k - 1, w[1] * k - 1, w[2] * k + 2, w[3] * k + 2);
+        hx.fillStyle = '#404040'; hx.fillRect(w[0] * k + 1, w[1] * k + 1, w[2] * k - 2, w[3] * k - 2);
+      }
+      const bump = normalMap(scene, 'facN_' + kind, hx.getImageData(0, 0, M2, M2), M2, kind === 'glass' ? 1.5 : 3);
+      return { diff, emis, spec, bump };
     },
 
     // Neon sign atlas: 4 columns x 16 rows of 256x64 labels.
@@ -94,6 +132,50 @@
       return { tex, uvs };
     },
 
+    // Tileable grey grain for asphalt, concrete and roofs (multiplied with vertex colours).
+    detail(scene) {
+      const S = 256, R = CB.rng(77);
+      const t = new B.DynamicTexture('detail', { width: S, height: S }, scene, true, B.Texture.TRILINEAR_SAMPLINGMODE);
+      t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE;
+      t.anisotropicFilteringLevel = 8;
+      const c = t.getContext(), img = c.createImageData(S, S);
+      // periodic value noise (several octaves) so the tile repeats seamlessly
+      const oct = [[4, 0.35], [8, 0.25], [16, 0.2], [64, 0.2]].map(([n, a]) => {
+        const g = new Float32Array(n * n); for (let i = 0; i < g.length; i++) g[i] = R();
+        return { n, a, g };
+      });
+      const sm = (v) => v * v * (3 - 2 * v);
+      for (let y = 0; y < S; y++) {
+        for (let x = 0; x < S; x++) {
+          let v = 0;
+          for (const o of oct) {
+            const fx = x / S * o.n, fy = y / S * o.n, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy);
+            const G = (a, b) => o.g[((b % o.n) * o.n) + (a % o.n)];
+            v += o.a * ((G(ix, iy) * (1 - tx) + G(ix + 1, iy) * tx) * (1 - ty) + (G(ix, iy + 1) * (1 - tx) + G(ix + 1, iy + 1) * tx) * ty);
+          }
+          v = 0.9 + (v - 0.5) * 0.28 + (R() - 0.5) * 0.08;
+          const i = (y * S + x) * 4, g = Math.max(0, Math.min(255, v * 255));
+          img.data[i] = img.data[i + 1] = img.data[i + 2] = g; img.data[i + 3] = 255;
+        }
+      }
+      c.putImageData(img, 0, 0);
+      // a few hairline cracks and stains
+      c.strokeStyle = 'rgba(40,40,40,0.12)'; c.lineWidth = 1;
+      for (let k = 0; k < 6; k++) {
+        let x = R() * S, y = R() * S;
+        c.beginPath(); c.moveTo(x, y);
+        for (let j = 0; j < 6; j++) { x += (R() - 0.5) * 30; y += (R() - 0.5) * 30; c.lineTo(x, y); }
+        c.stroke();
+      }
+      for (let k = 0; k < 6; k++) {
+        const g = c.createRadialGradient(0, 0, 1, 0, 0, 20); const x = R() * S, y = R() * S;
+        g.addColorStop(0, 'rgba(30,30,30,0.18)'); g.addColorStop(1, 'rgba(30,30,30,0)');
+        c.save(); c.translate(x, y); c.fillStyle = g; c.fillRect(-20, -20, 40, 40); c.restore();
+      }
+      t.update();
+      return t;
+    },
+
     graffiti(scene) {
       const W = 1024, H = 512;
       const tex = new B.DynamicTexture('graffiti', { width: W, height: H }, scene, true);
@@ -120,7 +202,8 @@
     },
   };
 
-  function win(c, x, y, w, h, R, blind) {
+  function win(c, x, y, w, h, R, blind, rec) {
+    if (rec) rec.push([x, y, w, h]);
     const g = c.createLinearGradient(x, y, x, y + h);
     g.addColorStop(0, '#5e7894'); g.addColorStop(1, '#1d2836');
     c.fillStyle = '#2b2b2b'; c.fillRect(x - 2, y - 2, w + 4, h + 4);

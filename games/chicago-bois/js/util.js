@@ -4,19 +4,22 @@ window.CB = window.CB || {};
 
 (function (CB) {
   // City layout: an N x N grid of blocks. Roads run along every grid line.
-  const N = 8, P = 74, ROAD = 14;
+  const N = 16, P = 74, ROAD = 14;
+  const HALF = N * P / 2;          // 592 – outermost road centre line
+  const EDGE = HALF + 7;           // outer edge of the outermost roads
+  const OUT = HALF + 10;           // where the ring of boundary buildings starts
+  const SHORE = HALF + 38;         // Lake Michigan starts here (x)
   CB.C = {
-    N, P, ROAD,
-    HALF: N * P / 2,          // 296 – outermost road centre line
+    N, P, ROAD, HALF, EDGE, OUT, SHORE,
     BLOCK: P - ROAD,          // 60 – block width incl. sidewalk
     SIDE: 3.2,                // sidewalk width
     CURB: 0.15,               // sidewalk height
     LANE: 2.5,                // driving lane offset from centre line
     PARK: 5.6,                // curb-side parking offset
     STOP: 11.5,               // stop line distance from intersection centre
-    SHORE: 334,               // lake starts here (x)
-    PIER: { x0: 334, x1: 470, z0: -9, z1: 9 },
-    WORLD: { x0: -306, x1: 334, z0: -306, z1: 306 },
+    PIER: { x0: SHORE, x1: SHORE + 136, z0: -9, z1: 9 },
+    FERRIS: { x0: SHORE + 58, x1: SHORE + 108, z0: 9, z1: 28 },
+    WORLD: { x0: -OUT, x1: SHORE, z0: -OUT, z1: OUT },
   };
   CB.road = (i) => i * P - CB.C.HALF;
 
@@ -75,7 +78,7 @@ window.CB = window.CB || {};
 
   // Settings (persisted per browser; works without storage too).
   const DEFAULTS = {
-    quality: 'medium', master: 0.8, music: 0.6, sens: 1, invertY: false,
+    quality: 'high', autoQuality: true, master: 0.8, music: 0.6, sens: 1, invertY: false,
     dayLength: 10, showFps: false,
   };
   CB.settings = Object.assign({}, DEFAULTS);

@@ -83,7 +83,7 @@
       vec3 d = normalize(vPos);
       float h = d.y;
       vec3 col = mix(horizonColor, topColor, pow(clamp(h, 0.0, 1.0), 0.5));
-      if (h < 0.0) col = horizonColor * 0.85;
+      if (h < 0.0) col = horizonColor;
       vec3 sd3 = normalize(sunDir);
       float sd = max(dot(d, sd3), 0.0);
       col += sunColor * (pow(sd, 900.0) * 6.0 + pow(sd, 10.0) * 0.28) * (1.0 - night);
@@ -149,43 +149,96 @@
     for (const c of CB.City.chunkMeshes) c.mesh.receiveShadows = true;
   }
 
+  let pipeline = null;
   function applyQuality() {
     const q = CB.settings.quality;
     engine.setHardwareScalingLevel(q === 'low' ? 1.5 : q === 'high' ? 1 / Math.min(window.devicePixelRatio || 1, 1.5) : 1);
-    // shadows
+    // shadows: one large map that follows the player (4096 px over 320 m on High, 2048 px over 210 m on Medium).
+    // Poisson filtering is used because depth-compare (PCF) maps fail on some drivers.
     if (shadowGen) { shadowGen.dispose(); shadowGen = null; }
     if (q !== 'low') {
-      shadowGen = new B.ShadowGenerator(q === 'high' ? 2048 : 1024, sun);
-      shadowGen.usePercentageCloserFiltering = true;
-      shadowGen.filteringQuality = B.ShadowGenerator.QUALITY_LOW;
-      shadowGen.bias = 0.0025; shadowGen.normalBias = 0.03;
-      shadowGen.setDarkness(0.35);
+      sun.shadowFrustumSize = q === 'high' ? 320 : 210;
+      shadowGen = new B.ShadowGenerator(q === 'high' ? 4096 : 2048, sun);
+      shadowGen.usePoissonSampling = true;
+      shadowGen.bias = 0.0007; shadowGen.normalBias = 0.02;
+      shadowGen.setDarkness(0.12);
       casterT = 0;
     }
     // glow
     if (glow) { glow.dispose(); glow = null; }
     if (q !== 'low') {
       glow = new B.GlowLayer('glow', scene, { mainTextureRatio: q === 'high' ? 0.5 : 0.35, blurKernelSize: 28 });
-      const inc = CB.Pools.glowMeshes.concat([CB.City.signMesh, CB.Landmarks.bulbs], CB.Activities.glowMeshes);
-      for (const m of inc) if (m) glow.addIncludedOnlyMesh(m);
+      // Everything is drawn into the glow pass so buildings hide lights behind them,
+      // but only the light meshes actually glow (the rest is drawn black).
+      const inc = new Set(CB.Pools.glowMeshes.concat([CB.City.signMesh, CB.Landmarks.bulbs], CB.Activities.glowMeshes).filter(Boolean));
+      const sign = CB.City.signMesh;
+      glow.customEmissiveColorSelector = (mesh, subMesh, material, result) => {
+        if (mesh === sign) result.set(0.8, 0.8, 0.8, 1);
+        else if (inc.has(mesh) && material.emissiveColor) result.set(material.emissiveColor.r, material.emissiveColor.g, material.emissiveColor.b, 1);
+        else result.set(0, 0, 0, 1);
+      };
+      for (const m of [skyMesh, CB.Landmarks.water, CB.City.aoMesh, CB.City.ground].concat(CB.Landmarks.riverMeshes)) if (m) glow.addExcludedMesh(m);
+      for (const p of [CB.Pools.headPool, CB.Pools.sirenPool, CB.Pools.ringRed, CB.Pools.ringGreen, CB.Pools.ringYellow]) glow.addExcludedMesh(p.mesh);
+      for (const m of CB.Pools.sLampPool.meshes) glow.addExcludedMesh(m);
+      // small non-glowing props don't need to block glow
+      for (const p of [CB.Pools.box, CB.Pools.cyl, CB.Pools.sph]) glow.addExcludedMesh(p.mesh);
+      for (const p of [CB.Pools.sCyl, CB.Pools.sSph, CB.Pools.sCone]) for (const m of p.meshes) glow.addExcludedMesh(m);
     }
-    const far = q === 'low' ? 380 : q === 'high' ? 700 : 540;
-    scene.fogEnd = far; scene.fogStart = far * 0.25;
+    // post-processing on High: MSAA, bloom on bright sky / neon, gentle sharpening
+    if (pipeline) { pipeline.dispose(); pipeline = null; }
+    if (q === 'high') {
+      try {
+        pipeline = new B.DefaultRenderingPipeline('pipe', true, scene, [camera]);
+        pipeline.samples = 4;
+        pipeline.fxaaEnabled = false;
+        pipeline.bloomEnabled = true;
+        pipeline.bloomThreshold = 0.78; pipeline.bloomWeight = 0.32; pipeline.bloomKernel = 64; pipeline.bloomScale = 0.5;
+        pipeline.sharpenEnabled = true; pipeline.sharpen.edgeAmount = 0.2;
+        pipeline.imageProcessingEnabled = true;
+      } catch (e) { pipeline = null; }
+    }
+    const far = q === 'low' ? 420 : q === 'high' ? 820 : 600;
+    scene.fogEnd = far; scene.fogStart = far * 0.22;
+    game.viewDist = far + 150;
     camera.maxZ = 3000;
   }
 
-  // Keep only nearby building chunks in the shadow map.
+  // Keep only nearby building chunks drawn and in the shadow map (the city is big; fog hides the rest).
   let casterT = 0;
   function updateCasters(dt, fx, fz) {
-    if (!shadowGen) return;
     casterT -= dt;
     if (casterT > 0) return;
     casterT = 0.5;
+    const cx = camera.position.x, cz = camera.position.z;
+    const vd = game.viewDist || 700;
+    // interiors only matter up close (you see them through doors)
+    for (const c of CB.City.chunkMeshes) c.mesh.setEnabled(M.dist(c.x, c.z, cx, cz) < (c.kind === 'interior' ? 210 : vd));
+    for (const m of CB.Pools.staticMeshes) m.setEnabled(M.dist(m.cellX, m.cellZ, cx, cz) < vd);
+    if (!shadowGen) return;
     const rl = shadowGen.getShadowMap().renderList;
     rl.length = 0;
     for (const m of CB.Pools.casters) rl.push(m);
-    for (const c of CB.City.chunkMeshes) if (M.dist(c.x, c.z, fx, fz) < 230) rl.push(c.mesh);
+    for (const m of CB.Pools.staticCasters) if (M.dist(m.cellX, m.cellZ, fx, fz) < (CB.settings.quality === 'high' ? 360 : 300)) rl.push(m);
+    const reach = CB.settings.quality === 'high' ? 330 : 240;
+    for (const c of CB.City.chunkMeshes) if (M.dist(c.x, c.z, fx, fz) < (c.kind === 'interior' ? 140 : reach)) rl.push(c.mesh);
     rl.push(CB.Landmarks.bean, CB.Landmarks.wheel);
+  }
+
+  // Drop the graphics quality one step if the frame rate stays low (only if the player never chose it).
+  function autoQuality(dt) {
+    const S = CB.settings;
+    if (!S.autoQuality || S.quality === 'low' || game.state !== 'playing') return;
+    game.fpsT = (game.fpsT || 0) + dt;
+    if (game.fpsT < 3) return; // let things settle
+    game.fpsN = (game.fpsN || 0) + 1; game.fpsSum = (game.fpsSum || 0) + engine.getFps();
+    if (game.fpsT < 9) return;
+    const avg = game.fpsSum / game.fpsN;
+    game.fpsT = 0; game.fpsN = 0; game.fpsSum = 0;
+    if (avg >= 32) return;
+    S.quality = S.quality === 'high' ? 'medium' : 'low';
+    CB.saveSettings();
+    applyQuality();
+    CB.HUD.notify('⚙ Graphics set to ' + S.quality.toUpperCase(), 'For a smoother frame rate – change it in Settings.', 'yellow');
   }
 
   // =================================================================== day / night
@@ -216,7 +269,7 @@
     skyMat.setColor3('sunColor', new B.Color3(sc[0], sc[1], sc[2]));
     skyMat.setFloat('night', night);
     skyMat.setFloat('time', game.time);
-    scene.fogColor = new B.Color3(hor[0] * 0.92, hor[1] * 0.92, hor[2] * 0.95);
+    scene.fogColor = new B.Color3(hor[0], hor[1], hor[2]);
     scene.clearColor.set(hor[0], hor[1], hor[2], 1);
     // sun or moon light
     if (sy > -0.06) {
@@ -229,12 +282,12 @@
       sun.diffuse.set(0.55, 0.65, 1);
     }
     sun.specular.copyFrom(sun.diffuse);
-    hemi.intensity = 0.32 + 0.5 * day;
+    hemi.intensity = 0.26 + 0.34 * day;
     hemi.diffuse.set(M.lerp(0.42, 1, day), M.lerp(0.48, 0.98, day), M.lerp(0.75, 0.95, day));
     hemi.groundColor.set(M.lerp(0.12, 0.38, day), M.lerp(0.12, 0.36, day), M.lerp(0.2, 0.34, day));
     // shadow follows the focus point
     sun.position.set(fx - sun.direction.x * 220, -sun.direction.y * 220, fz - sun.direction.z * 220);
-    if (shadowGen) shadowGen.setDarkness(M.lerp(0.35, 0.65, night));
+    if (shadowGen) shadowGen.setDarkness(M.lerp(0.12, 0.6, night));
     // emissive stuff
     const City = CB.City, P = CB.Pools;
     const wn = night * 0.95;
@@ -243,6 +296,9 @@
     City.mats.sign.emissiveTexture.level = 0.75 + 0.45 * night;
     City.mats.sign.emissiveColor.set(0, 0, 0);
     P.matLamp.emissiveColor.set(M.lerp(0.35, 1, night), M.lerp(0.34, 0.88, night), M.lerp(0.32, 0.62, night));
+    const cn = 0.25 + 0.4 * night;
+    P.matCrown.emissiveColor.set(0.55 * cn, 0.8 * cn, 1 * cn);
+    P.matCrown2.emissiveColor.set(1 * cn, 0.72 * cn, 0.35 * cn);
     P.matLampPool.emissiveColor.set(0.95 * night * 0.55, 0.75 * night * 0.55, 0.45 * night * 0.55);
     P.matHeadPool.emissiveColor.set(0.9 * night * 0.5, 0.85 * night * 0.5, 0.7 * night * 0.5);
     P.matSirenPool.alpha = 0.99;
@@ -254,6 +310,7 @@
   function makePlayer() {
     const h = new CB.Human(CB.playerLook(0));
     h.onStep = (run) => { if (!pl.inCar) CB.Audio.play('step', run ? 0.9 : 0.55); };
+    h.addWeapons();
     pl = game.player = {
       human: h, x: 0, y: 0, z: 0, vx: 0, vz: 0, vy: 0, yaw: 0, health: 100,
       inCar: false, car: null, hidden: false, hideIt: null, hideSpot: null, pose: null, poseT: 0,
@@ -264,7 +321,9 @@
   function resetPlayer() {
     const s = CB.City.playerSpawn;
     Object.assign(pl, { x: s.x, z: s.z, y: C.CURB, vx: 0, vz: 0, vy: 0, yaw: s.yaw, health: 100, inCar: false, car: null, hidden: false, hideIt: null, hideSpot: null,
-      pose: null, poseT: 0, stunT: 0, downT: 0, disguiseT: 0, look: 0, dead: false, lastHurt: -99 });
+      pose: null, poseT: 0, stunT: 0, downT: 0, disguiseT: 0, look: 0, dead: false, lastHurt: -99, swingT: 0,
+      ammo: GUN.mag, fireT: 0, reloadT: 0, aiming: false });
+    setWeapon('bat', true);
     pl.human.recolor(CB.playerLook(0));
     pl.human.setVisible(true);
     game.camYaw = s.yaw; game.camPitch = 0.28;
@@ -290,13 +349,16 @@
     let wx = 0, wz = 0;
     if (il > 0) { ix /= il; iz /= il; wx = sy * iz + cy * ix; wz = cy * iz - sy * ix; }
     pl.sprinting = !!(k.ShiftLeft || k.ShiftRight) && il > 0;
-    let speed = pl.sprinting ? 7.3 : 3.4;
+    pl.aiming = !!game.aimHeld && pl.weapon === 'pistol' && !busy && pl.downT <= 0;
+    if (pl.aiming) pl.sprinting = false;
+    let speed = pl.aiming ? 2.6 : pl.sprinting ? 7.3 : 3.4;
     if (pl.stunT > 0) speed = 1.3;
     if (pl.downT > 0) { pl.downT -= dt; speed = 0; }
     const tvx = wx * speed, tvz = wz * speed;
     const acc = pl.grounded ? 16 : 3;
     pl.vx = M.damp(pl.vx, tvx, acc, dt); pl.vz = M.damp(pl.vz, tvz, acc, dt);
     if (pl.knockV) { pl.vx += pl.knockV.x; pl.vz += pl.knockV.z; pl.knockV = null; }
+    const ox = pl.x, oz = pl.z;
     pl.x += pl.vx * dt; pl.z += pl.vz * dt;
     // collisions: buildings, props, cars
     City.resolve(pl, 0.38, pl.y, 0.45);
@@ -312,6 +374,7 @@
     }
     pl.x = M.clamp(pl.x, C.WORLD.x0 + 0.5, C.PIER.x1 - 0.5);
     pl.z = M.clamp(pl.z, C.WORLD.z0 + 0.5, C.WORLD.z1 - 0.5);
+    if (City.groundY(pl.x, pl.z) < -1) { pl.x = ox; pl.z = oz; pl.vx = pl.vz = 0; }
     // vertical
     const support = City.supportY(pl.x, pl.z, 0.38, pl.y, 0.45);
     if (pl.grounded && (k.Space) && !busy && pl.downT <= 0 && pl.stunT <= 0) { pl.vy = 6.4; pl.grounded = false; CB.Audio.play('whoosh', 0.3); }
@@ -323,11 +386,22 @@
     } else { pl.y = M.damp(pl.y, support, 25, dt); pl.vy = 0; pl.grounded = true; }
     // facing
     const hs = Math.hypot(pl.vx, pl.vz);
-    if (hs > 0.3 && pl.poseT <= 0) pl.yaw = M.turn(pl.yaw, Math.atan2(pl.vx, pl.vz), dt * 12);
+    if (pl.aiming) { pl.yaw = M.turn(pl.yaw, game.camYaw, dt * 20); pl.pose = 'aim'; pl.poseT = Math.max(pl.poseT, 0.15); }
+    else if (hs > 0.3 && pl.poseT <= 0) pl.yaw = M.turn(pl.yaw, Math.atan2(pl.vx, pl.vz), dt * 12);
+    // gun timers
+    pl.fireT = Math.max(0, pl.fireT - dt);
+    if (pl.reloadT > 0) { pl.reloadT -= dt; if (pl.reloadT <= 0) pl.ammo = GUN.mag; }
+    if (pl.aiming) { game.aimScareT = (game.aimScareT || 0) - dt; if (game.aimScareT <= 0) { game.aimScareT = 1.5; threaten(true); } }
     // cover (bushes)
     pl.inCover = false;
     for (const cv of City.covers) if (M.dist(cv.x, cv.z, pl.x, pl.z) < cv.r + 0.6) { pl.inCover = true; break; }
     // animation
+    // melee swing: the hit lands part-way through the animation
+    if (pl.swingT > 0) {
+      pl.swingT -= dt;
+      pl.human.swingP = 1 - pl.swingT / SWING;
+      if (!pl.swingHit && pl.human.swingP > 0.5) { pl.swingHit = true; meleeHit(); }
+    }
     let pose = 'walk';
     if (pl.downT > 0) pose = 'fallen';
     else if (pl.poseT > 0 && pl.pose) pose = pl.pose;
@@ -798,7 +872,7 @@
     CB.Audio.engine(false); CB.Audio.loop('siren', 0); CB.Audio.loop('heli', 0); CB.Audio.loop('skid', 0); CB.Audio.loop('spray', 0); CB.Audio.loop('alarm', 0);
     CB.Audio.music(false);
     CB.Activities.cancelHold();
-    game.keys = {};
+    game.keys = {}; game.aimHeld = false;
     showScreen('pause');
   }
   function resume() {
@@ -860,7 +934,7 @@
       CB.saveSettings();
       if (after) after();
     });
-    onSet('setQuality', 'quality', String, () => applyQuality());
+    onSet('setQuality', 'quality', String, () => { CB.settings.autoQuality = false; CB.saveSettings(); applyQuality(); });
     onSet('setMaster', 'master', Number, () => CB.Audio.applyVolumes());
     onSet('setMusic', 'music', Number, () => CB.Audio.applyVolumes());
     onSet('setSens', 'sens', Number);
@@ -871,7 +945,7 @@
     // input
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', (e) => { game.keys[e.code] = false; });
-    window.addEventListener('blur', () => { game.keys = {}; });
+    window.addEventListener('blur', () => { game.keys = {}; game.aimHeld = false; });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas || game.state !== 'playing') return;
       const s = 0.0022 * CB.settings.sens;
@@ -883,13 +957,24 @@
       CB.Audio.init();
       if (game.state !== 'playing') return;
       if (document.pointerLockElement !== canvas) { lockPointer(); return; }
-      if (e.button === 0) shove();
+      if (e.button === 0) attack();
+      if (e.button === 2) game.aimHeld = true;
     });
+    window.addEventListener('mouseup', (e) => { if (e.button === 2) game.aimHeld = false; });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === canvas;
       if (!locked && game.wasLocked && game.state === 'playing') pause();
       game.wasLocked = locked;
     });
+    canvas.addEventListener('wheel', (e) => {
+      if (game.state !== 'playing' || document.pointerLockElement !== canvas) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now - (game.wheelT || 0) < 120) return;
+      game.wheelT = now;
+      cycleWeapon(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
     window.addEventListener('resize', () => { engine.resize(); if (CB.HUD.bigOpen) CB.HUD.toggleBigMap(true); });
     if (window.matchMedia && window.matchMedia('(hover: none)').matches) {
       $('menu').querySelector('.menu-foot').insertAdjacentHTML('afterbegin', '<b style="color:#ffd32a">⚠ This game needs a keyboard and mouse – play it on a computer.</b><br>');
@@ -922,10 +1007,13 @@
     if (!first) return;
     switch (e.code) {
       case 'KeyE': interact(); break;
-      case 'KeyF': shove(); break;
+      case 'KeyF': attack(); break;
+      case 'KeyQ': cycleWeapon(1); break;
+      case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': if (!pl.inCar) setWeapon(WEAPONS[+e.code.slice(5) - 1]); break;
       case 'KeyM': CB.HUD.toggleBigMap(); break;
       case 'KeyH': if (pl.inCar) { CB.Audio.play('honk', 1); CB.Peds.scare(pl.x, pl.z, 12, 'flee'); } break;
       case 'KeyR':
+        if (!pl.inCar && pl.weapon === 'pistol') { reload(); break; }
         if (pl.inCar) {
           game.radioOn = !game.radioOn;
           CB.Audio.music(game.radioOn); CB.Audio.radio(game.radioOn);
@@ -948,7 +1036,334 @@
       return;
     }
     if (!q) return;
-    if (q.car) carAction(q); else A.interact(q, game);
+    if (q.ped) { if (q.ok) mug(q); return; }
+    if (q.car) carAction(q); else if (q.it || q.prop) A.interact(q, game);
+  }
+
+  // =================================================================== weapons
+  const WEAPONS = ['fists', 'bat', 'crowbar', 'pistol'];
+  const GUN = { mag: 12, rate: 0.24, reload: 1.3 };
+  const WEAPON_INFO = {
+    fists: { icon: '👊', name: 'Fists' }, bat: { icon: '🏏', name: 'Baseball bat' },
+    crowbar: { icon: '🔧', name: 'Crowbar' }, pistol: { icon: '🔫', name: 'Pistol' },
+  };
+  CB.WEAPON_INFO = WEAPON_INFO;
+  const SWING = 0.45;
+  function setWeapon(w, quiet) {
+    if (pl.weapon === w && !quiet) return;
+    pl.weapon = w;
+    pl.human.setWeapon(w);
+    if (!quiet) CB.Audio.play('click', 0.7);
+  }
+  function cycleWeapon(dir) {
+    if (pl.inCar || pl.dead) return;
+    const i = WEAPONS.indexOf(pl.weapon);
+    setWeapon(WEAPONS[(i + dir + WEAPONS.length) % WEAPONS.length]);
+  }
+  game.setWeapon = setWeapon;
+
+  // Left click / F: shove, swing or point the gun.
+  function attack() {
+    if (pl.inCar || pl.hidden || pl.dead || pl.downT > 0 || CB.Activities.hold) return;
+    const w = pl.weapon;
+    if (w === 'fists') { shove(); return; }
+    if (w === 'pistol') { shoot(); return; }
+    if (pl.swingT > 0) return;
+    pl.swingT = SWING; pl.swingHit = false; pl.human.swingP = 0;
+    pl.pose = 'swing'; pl.poseT = SWING;
+    CB.Audio.play('whoosh', 0.7);
+  }
+
+  // Everything in front of the player within reach of the swing.
+  function meleeHit() {
+    const fx = Math.sin(pl.yaw), fz = Math.cos(pl.yaw);
+    const reach = pl.weapon === 'bat' ? 2.5 : 2.2, power = pl.weapon === 'bat' ? 7 : 5;
+    const inFront = (x, z, r) => { const dx = x - pl.x, dz = z - pl.z, d = Math.hypot(dx, dz); return d < reach + (r || 0) && (dx * fx + dz * fz) > -0.2 * d; };
+    let hit = false;
+    for (const c of CB.Police.foot) {
+      if (c.mode === 'knock' || c.mode === 'fallen' || !inFront(c.x, c.z)) continue;
+      c.knock(fx * power, fz * power, 4); hit = true;
+      CB.Police.bust = Math.max(0, CB.Police.bust - 0.5);
+      reward(10, 0, 'Clobbered a police officer', '🏏', 'assault');
+      CB.Police.startChase(pl, game);
+    }
+    for (const p of CB.Peds.list) {
+      if (p.mode === 'knock' || p.mode === 'fallen' || !inFront(p.x, p.z)) continue;
+      p.knock(fx * power, fz * power, 4); hit = true;
+      reward(10, 0, 'Bonked a pedestrian', '🏏', 'assault');
+      raiseAlarm(pl.x, pl.z, false, 'assault');
+    }
+    CB.City.nearProps(pl.x, pl.z, reach + 1, (p) => {
+      if (p.broken || !inFront(p.x, p.z, p.r)) return;
+      CB.Activities.breakProp(p, fx * 4, fz * 4, game, true); hit = true;
+    });
+    // dent cars (and set off their alarms)
+    for (const list of [CB.Traffic.parked, CB.Traffic.cars]) for (const c of list) {
+      if (c === pl.car || c.dead || Math.abs(c.x - pl.x) > 6 || Math.abs(c.z - pl.z) > 6) continue;
+      const tx = pl.x + fx * 1.2, tz = pl.z + fz * 1.2;
+      if (c.distTo(tx, tz) > 0.9) continue;
+      c.health = Math.max(5, c.health - 12); hit = true;
+      CB.FX.burst('glass', tx, 1.1, tz, 25); CB.Audio.play('glass', 0.8, tx, tz, 50);
+      if (c.mode === 'parked' && Math.random() < 0.5) { CB.Audio.play('alarmCar', 0.8, c.x, c.z, 70); raiseAlarm(c.x, c.z, true, 'car alarm'); }
+      else raiseAlarm(c.x, c.z, false, 'vandalism');
+      if (c.occupied && c.mode === 'traffic') { c.mode = 'wreck'; c.fleeT = 0.6; c.vf = 0; c.vx = c.vz = 0; }
+      reward(10, 0, 'Smashed a car window', '💥', 'damage');
+      break;
+    }
+    if (hit) { CB.Audio.play('punch', 1); CB.FX.shake(0.12); }
+  }
+
+  // Pistol: point it – people nearby freeze or panic.
+  function threaten(fromAim) {
+    if (!fromAim) {
+      if (pl.poseT > 0 && pl.pose === 'aim') return;
+      pl.pose = 'aim'; pl.poseT = 0.9;
+      pl.yaw = game.camYaw;
+    }
+    const fx = Math.sin(pl.yaw), fz = Math.cos(pl.yaw);
+    let scared = 0;
+    for (const p of CB.Peds.list) {
+      const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz);
+      if (d > 14 || p.mode === 'knock' || p.mode === 'fallen' || p.mode === 'held') continue;
+      if (dx * fx + dz * fz > d * 0.5) { p.cower(M.rand(2, 3.5)); scared++; } else if (d < 8) { p.flee(pl.x, pl.z); scared++; }
+    }
+    if (scared && !fromAim) {
+      CB.Audio.play('hey', 0.8);
+      raiseAlarm(pl.x, pl.z, false, 'brandishing a weapon');
+      reward(5, 0, 'Waved a gun around', '🔫', 'brandish');
+    } else if (scared) raiseAlarm(pl.x, pl.z, false, 'brandishing a weapon');
+  }
+
+  // =================================================================== the pistol
+  // 12-round magazine, automatic reload. Shots knock people over (slapstick – they get back up),
+  // break props, damage cars and bring the police.
+  function shoot() {
+    if (pl.reloadT > 0 || pl.fireT > 0) return;
+    if (pl.ammo <= 0) { reload(); return; }
+    pl.ammo--; pl.fireT = GUN.rate;
+    pl.yaw = game.camYaw; pl.pose = 'aim'; pl.poseT = Math.max(pl.poseT, 0.55);
+    // aim along the camera's line of sight (stored by updateCamera, so it's always current)
+    const o = camera.position.clone(), d = (game.camAim || camera.getTarget()).subtract(o).normalize();
+    const hit = traceShot(o, d);
+    // muzzle: in front of the player's right hand
+    const sy = Math.sin(pl.yaw), cy = Math.cos(pl.yaw);
+    const mx = pl.x + sy * 0.78 + cy * 0.22, my = pl.y + 1.42, mz = pl.z + cy * 0.78 - sy * 0.22;
+    tracer(mx, my, mz, hit.x, hit.y, hit.z);
+    CB.Audio.play('gun', 1);
+    CB.FX.burst('sparks', mx, my, mz, 6);
+    CB.FX.shake(0.06);
+    applyHit(hit, d);
+    // the first shot in a while is a crime in itself and sends everyone running
+    CB.Peds.scare(pl.x, pl.z, 40, 'flee');
+    if (game.time - (game.lastShotT || -99) > 4) {
+      raiseAlarm(pl.x, pl.z, true, 'gunfire');
+      reward(5, 0, 'Shots fired!', '🔫', 'gunfire');
+    }
+    game.lastShotT = game.time;
+    if (pl.ammo === 0) reload();
+  }
+  function reload() {
+    if (pl.reloadT > 0 || pl.ammo === GUN.mag) return;
+    pl.reloadT = GUN.reload;
+    pl.pose = 'work'; pl.poseT = 0.5;
+    CB.Audio.play('reload', 0.9);
+  }
+  game.shoot = shoot;
+
+  // Ray from the camera through the crosshair. Returns the closest thing hit.
+  // People get a little aim assist (a cone that widens with distance).
+  const MAXR = 110;
+  function traceShot(o, d) {
+    const minT = Math.max(0, (pl.x - o.x) * d.x + (pl.y + 1.4 - o.y) * d.y + (pl.z - o.z) * d.z) - 0.2;
+    let best = { t: MAXR, kind: 'none' };
+    const dh = Math.hypot(d.x, d.z) || 1e-6;
+    // people (cylinder r 0.45, 1.9 tall) with aim assist
+    const people = (list, kind) => {
+      for (const p of list) {
+        if (p.mode === 'knock' || p.mode === 'fallen') continue;
+        const vx = p.x - o.x, vy = p.y + 1.1 - o.y, vz = p.z - o.z;
+        const t = vx * d.x + vy * d.y + vz * d.z;
+        if (t < minT || t > best.t) continue;
+        const px = vx - d.x * t, py = vy - d.y * t, pz = vz - d.z * t;
+        const lateral = Math.hypot(px, pz), vert = Math.abs(py);
+        const assist = 0.45 + t * 0.022;
+        if (lateral > assist || vert > 1.0 + t * 0.015) continue;
+        if (!CB.City.los(pl.x, pl.z, p.x, p.z)) continue;
+        best = { t, kind, obj: p, x: p.x, y: p.y + 1.1 + (o.y + d.y * t - (p.y + 1.1)) * 0.5, z: p.z };
+      }
+    };
+    people(CB.Peds.list, 'ped');
+    people(CB.Police.foot, 'cop');
+    // 2D ray vs circle helper (returns entry t along the 3D ray or -1)
+    const circleT = (cx, cz, r) => {
+      const fx = o.x - cx, fz = o.z - cz;
+      const a = d.x * d.x + d.z * d.z, b = 2 * (fx * d.x + fz * d.z), c = fx * fx + fz * fz - r * r;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0 || a < 1e-9) return -1;
+      const t = (-b - Math.sqrt(disc)) / (2 * a);
+      return t;
+    };
+    // cars
+    for (const list of [CB.Traffic.cars, CB.Traffic.parked, CB.Police.cars]) for (const c of list) {
+      if (c === pl.car || Math.abs(c.x - o.x) > MAXR || Math.abs(c.z - o.z) > MAXR) continue;
+      const cs = c.circles();
+      for (let k = 0; k < 3; k++) {
+        const t = circleT(cs[k][0], cs[k][1], cs[3]);
+        if (t < minT || t > best.t) continue;
+        const y = o.y + d.y * t, top = c.y + (c.T.van ? 2.2 : 1.6);
+        if (y < c.y || y > top) continue;
+        best = { t, kind: 'car', obj: c, x: o.x + d.x * t, y, z: o.z + d.z * t };
+      }
+    }
+    // breakable props
+    CB.City.nearProps(pl.x, pl.z, 60, (p) => {
+      if (p.broken) return;
+      const t = circleT(p.x, p.z, p.r + 0.1);
+      if (t < minT || t > best.t) return;
+      const y = o.y + d.y * t;
+      if (y < p.y || y > p.y + p.h + 0.2) return;
+      best = { t, kind: 'prop', obj: p, x: o.x + d.x * t, y, z: o.z + d.z * t };
+    });
+    // walls and ground: march along the ray
+    for (let t = Math.max(minT, 0.5); t < best.t; t += 0.4) {
+      const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
+      if (y <= CB.City.groundY(x, z)) { best = { t, kind: 'ground', x, y: CB.City.groundY(x, z) + 0.05, z }; break; }
+      let wall = false;
+      CB.City.near(x, z, 0.05, (c) => { if (!wall && c.h > y && x >= c.x0 && x <= c.x1 && z >= c.z0 && z <= c.z1) wall = true; });
+      if (wall) { best = { t, kind: 'wall', x, y, z }; break; }
+    }
+    if (best.kind === 'none') { const t = best.t; best.x = o.x + d.x * t; best.y = o.y + d.y * t; best.z = o.z + d.z * t; }
+    return best;
+  }
+
+  // Short-lived bright streak from the gun to the hit point + a muzzle flash.
+  const tracers = [];
+  function tracer(x0, y0, z0, x1, y1, z1) {
+    const P = CB.Pools;
+    const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0, L = Math.hypot(dx, dy, dz);
+    const s = P.gY.alloc(), f = P.gW.alloc();
+    if (s >= 0) CB.placeSlot(P.gY, s, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, 0.035, 0.035, L, Math.atan2(dx, dz), Math.atan2(-dy, Math.hypot(dx, dz)));
+    if (f >= 0) CB.placeSlot(P.gW, f, x0, y0, z0, 0.22, 0.22, 0.22, Math.random() * 6, Math.random() * 6, 0);
+    tracers.push({ s, f, t: 0.06 });
+  }
+  function updateTracers(dt) {
+    for (let i = tracers.length - 1; i >= 0; i--) {
+      const tr = tracers[i]; tr.t -= dt;
+      if (tr.t <= 0) { CB.Pools.gY.release(tr.s); CB.Pools.gW.release(tr.f); tracers.splice(i, 1); }
+    }
+  }
+
+  function applyHit(hit, d) {
+    const kx = d.x / (Math.hypot(d.x, d.z) || 1), kz = d.z / (Math.hypot(d.x, d.z) || 1);
+    switch (hit.kind) {
+      case 'ped': {
+        const p = hit.obj;
+        p.knock(kx * 6, kz * 6, 3.5);
+        CB.FX.burst('dust', hit.x, hit.y, hit.z, 8);
+        CB.Peds.scare(p.x, p.z, 30, 'flee');
+        reward(10, 0, 'Pedestrian knocked flat', '🔫', 'shooting');
+        raiseAlarm(p.x, p.z, true, 'shooting');
+        break;
+      }
+      case 'cop': {
+        const c = hit.obj;
+        c.knock(kx * 6, kz * 6, 3.5);
+        CB.FX.burst('dust', hit.x, hit.y, hit.z, 8);
+        CB.Police.bust = Math.max(0, CB.Police.bust - 0.5);
+        reward(20, 0, 'Shot down a police officer – they\'ll be back up!', '🚨', 'copshot');
+        CB.Police.startChase(pl, game);
+        break;
+      }
+      case 'car': {
+        const c = hit.obj;
+        CB.FX.burst('sparks', hit.x, hit.y, hit.z, 14);
+        CB.Audio.play('ricochet', 0.8, hit.x, hit.z, 60);
+        if (c.dead) break;
+        c.health -= 14;
+        if (c.mode === 'traffic') { c.mode = 'wreck'; c.vf = c.v || 0; c.fleeT = 0.5; }
+        if (c.mode === 'parked' && Math.random() < 0.6) CB.Audio.play('alarmCar', 0.8, c.x, c.z, 70);
+        if (c.isPolice) { reward(10, 0, 'Shot up a police cruiser!', '🚓', 'copshot'); CB.Police.startChase(pl, game); }
+        else reward(10, 0, 'Shot up a car', '💥', 'damage');
+        if (c.health <= 0) wreckCar(c);
+        else if (c.health < 35) CB.FX.setSmoke(c, 4);
+        break;
+      }
+      case 'prop':
+        CB.Activities.breakProp(hit.obj, kx * 6, kz * 6, game, true);
+        break;
+      case 'wall':
+        CB.FX.burst('sparks', hit.x, hit.y, hit.z, 10);
+        CB.FX.burst('dust', hit.x, hit.y, hit.z, 4);
+        CB.Audio.play('ricochet', 0.5, hit.x, hit.z, 50);
+        break;
+      case 'ground':
+        CB.FX.burst('dust', hit.x, hit.y, hit.z, 8);
+        break;
+    }
+  }
+
+  // Who can the player rob right now? (needs a weapon out)
+  function pedQuery() {
+    if (pl.inCar || pl.hidden || pl.dead) return null;
+    const armed = pl.weapon !== 'fists';
+    const range = pl.weapon === 'pistol' ? 7 : 2.8;
+    const fx = Math.sin(game.camYaw), fz = Math.cos(game.camYaw);
+    let best = null, bd = 1e9;
+    const consider = (p, isCop) => {
+      if (p.mode === 'knock' || p.mode === 'fallen' || p.mode === 'held' || (p.robbedUntil || 0) > game.time) return;
+      const dx = p.x - pl.x, dz = p.z - pl.z, d = Math.hypot(dx, dz);
+      if (d > (armed ? range : 2.2) || d >= bd) return;
+      if (d > 1.6 && dx * fx + dz * fz < d * 0.55) return; // must be roughly where you're looking
+      if (d > 3 && !CB.City.los(pl.x, pl.z, p.x, p.z)) return;
+      best = { p, isCop, d }; bd = d;
+    };
+    for (const p of CB.Peds.list) consider(p, false);
+    if (!CB.Police.hasActive()) for (const c of CB.Police.foot) consider(c, true);
+    if (!best) return null;
+    if (!armed) return best.d < 2 ? { d: best.d + 0.8, ok: false, text: 'Take out a weapon (Q) to rob people' } : null;
+    const who = best.isCop ? 'police officer' : 'pedestrian', heat = best.isCop ? 25 : 10;
+    return { ped: best.p, isCop: best.isCop, d: best.d + 0.6, ok: true, text: `Rob the ${who} <span class="heat">+${heat}% heat</span>` };
+  }
+
+  // Hold-up: the victim freezes with hands up, you hold E, they hand over their cash.
+  function mug(q) {
+    const p = q.ped, isCop = q.isCop;
+    const face = () => {
+      pl.yaw = Math.atan2(p.x - pl.x, p.z - pl.z);
+      p.yaw = Math.atan2(pl.x - p.x, pl.z - p.z);
+    };
+    face();
+    p.mode = 'held'; p.t = 1;
+    const pose = pl.weapon === 'pistol' ? 'aim' : 'raise';
+    CB.Audio.play('hey', 0.9, p.x, p.z, 30);
+    CB.Activities.startHold({ x: pl.x, z: pl.z }, isCop ? 2.2 : 1.6, isCop ? 'Robbing a police officer…' : 'Robbing the pedestrian…', pose, game, {
+      start: () => { if (!isCop) raiseAlarm(p.x, p.z, false, 'mugging'); },
+      tick: (t, dt) => {
+        if (p.mode === 'knock' || p.mode === 'fallen') { CB.Activities.cancelHold('They got away'); return; }
+        p.mode = 'held'; p.t = 0.6; face();
+        if (Math.random() < dt * 4) CB.FX.burst('money', p.x, 1.2, p.z, 2);
+      },
+      done: () => {
+        const cash = isCop ? M.randInt(150, 320) : Math.random() < 0.12 ? M.randInt(250, 600) : M.randInt(20, 140);
+        CB.FX.burst('money', p.x, 1.3, p.z, 35);
+        CB.Audio.play('cash', 0.9);
+        p.robbedUntil = game.time + 180;
+        if (isCop) {
+          p.mode = 'walk'; p.reroute();
+          reward(25, cash, 'Robbed a police officer!', '💰');
+          raiseAlarm(p.x, p.z, true, 'robbing an officer');
+          CB.Police.startChase(pl, game);
+        } else {
+          p.flee(pl.x, pl.z, M.rand(5, 8));
+          reward(10, cash, cash >= 250 ? 'Mugged a big shot – fat wallet!' : 'Mugged a pedestrian', '💰', 'mugging');
+        }
+      },
+      cancel: () => {
+        if (p.mode !== 'held') return;
+        if (isCop) { p.mode = 'walk'; p.reroute(); CB.Police.startChase(pl, game); }
+        else p.flee(pl.x, pl.z);
+      },
+    });
   }
 
   function shove() {
@@ -983,9 +1398,20 @@
         game.camPitch = M.damp(game.camPitch, 0.22, 2, dt);
       }
     }
-    const tx = pl.x, ty = pl.y + (car ? 1.6 : 1.55), tz = pl.z;
-    let dist = car ? 8.5 + Math.min(4, car.speed * 0.08) + (car.T.van ? 1.5 : 0) : 5.2;
+    game.aimK = M.damp(game.aimK || 0, pl.aiming && !car ? 1 : 0, 10, dt);
+    const ak = game.aimK;
+    // indoors: closer camera that stays under the ceiling and inside the room
+    const room = car ? null : CB.City.roomAt(pl.x, pl.z);
+    game.indoorK = M.damp(game.indoorK || 0, room ? 1 : 0, 6, dt);
+    const ik = game.indoorK;
+    // over the right shoulder while aiming (and indoors, so the player doesn't fill the view)
+    const sk = Math.max(ak, 0.7 * ik);
+    const sx = Math.cos(game.camYaw) * 0.85 * sk, sz = -Math.sin(game.camYaw) * 0.85 * sk;
+    let tx = pl.x + sx, ty = pl.y + (car ? 1.6 : 1.55 + 0.15 * ak + 0.2 * ik * (1 - ak)), tz = pl.z + sz;
+    if (room) { tx = M.clamp(tx, room.x0 + 0.3, room.x1 - 0.3); tz = M.clamp(tz, room.z0 + 0.3, room.z1 - 0.3); }
+    let dist = car ? 8.5 + Math.min(4, car.speed * 0.08) + (car.T.van ? 1.5 : 0) : 5.2 - 2.4 * ak;
     if (pl.hidden) dist = 6.5;
+    if (room) dist = Math.min(dist, 3.3);
     const cp = Math.cos(game.camPitch), spch = Math.sin(game.camPitch);
     const dx = -Math.sin(game.camYaw) * cp, dy = spch, dz = -Math.cos(game.camYaw) * cp;
     // pull in when a building is in the way
@@ -993,10 +1419,30 @@
     for (let t = 0.6; t < dist; t += 0.35) {
       const x = tx + dx * t, y = ty + dy * t, z = tz + dz * t;
       let blocked = false;
-      CB.City.near(x, z, 0.25, (c) => { if (!blocked && c.h > y && c.kind !== 'tree' && c.kind !== 'pole' && x > c.x0 - 0.25 && x < c.x1 + 0.25 && z > c.z0 - 0.25 && z < c.z1 + 0.25) blocked = true; });
+      CB.City.near(x, z, 0.25, (c) => { if (!blocked && c.h > y && c.kind !== 'tree' && c.kind !== 'pole' && c.kind !== 'furniture' && x > c.x0 - 0.25 && x < c.x1 + 0.25 && z > c.z0 - 0.25 && z < c.z1 + 0.25) blocked = true; });
       if (blocked || y < CB.City.groundY(x, z) + 0.3) { d = Math.max(0.8, t - 0.3); break; }
     }
-    const want = new B.Vector3(tx + dx * d, ty + dy * d, tz + dz * d);
+    let lift = 0;
+    if (room) {
+      // where does the view ray leave the room? Through the doorway the camera may stay
+      // outside (kept under the lintel); anywhere else it stops in front of the wall.
+      let tb = d;
+      if (dx > 1e-4) tb = Math.min(tb, (room.x1 - tx) / dx); else if (dx < -1e-4) tb = Math.min(tb, (room.x0 - tx) / dx);
+      if (dz > 1e-4) tb = Math.min(tb, (room.z1 - tz) / dz); else if (dz < -1e-4) tb = Math.min(tb, (room.z0 - tz) / dz);
+      if (tb < d) {
+        const bx = tx + dx * tb, bz = tz + dz * tb, S = room.S;
+        const u = S.ux * (bx - S.ax) + S.uz * (bz - S.az);
+        const dr = room.door;
+        const viaDoor = u > room.d1 + 0.3 && u < room.d2 - 0.3 && bx > dr.x0 - 0.05 && bx < dr.x1 + 0.05 && bz > dr.z0 - 0.05 && bz < dr.z1 + 0.05;
+        if (!viaDoor) d = Math.max(0.5, tb - 0.4);
+      }
+      lift = Math.max(0, 1.7 - d) * 0.6;   // too close: look over the head instead
+    }
+    const want = new B.Vector3(tx + dx * d, ty + dy * d + lift, tz + dz * d);
+    if (room) {
+      const inside = want.x > room.x0 && want.x < room.x1 && want.z > room.z0 && want.z < room.z1;
+      want.y = Math.min(want.y, inside ? room.ceil - 0.3 : room.yb + 2.3);
+    }
     if (d < (game.lastCamD || dist) - 0.05) camPos.copyFrom(want);
     else B.Vector3.LerpToRef(camPos, want, Math.min(1, dt * 12), camPos);
     game.lastCamD = d;
@@ -1004,7 +1450,8 @@
     camera.position.set(camPos.x + (Math.random() - 0.5) * sh * 0.5, camPos.y + (Math.random() - 0.5) * sh * 0.5, camPos.z + (Math.random() - 0.5) * sh * 0.5);
     tmpV.set(tx, ty + 0.2, tz);
     camera.setTarget(tmpV);
-    const fov = car ? 0.95 + Math.min(0.25, car.speed * 0.006) : 0.95;
+    game.camAim = tmpV.clone();
+    const fov = car ? 0.95 + Math.min(0.25, car.speed * 0.006) : 0.95 - 0.2 * ak;
     camera.fov = M.damp(camera.fov, fov, 3, dt);
     pl.viewYaw = game.camYaw;
     CB.Audio.lx = camera.position.x; CB.Audio.lz = camera.position.z; CB.Audio.lyaw = game.camYaw;
@@ -1014,9 +1461,9 @@
     game.menuT += dt;
     const t = game.menuT;
     const a = Math.sin(t * 0.04) * 0.95;
-    const R = 340;
-    camera.position.set(Math.cos(a) * R + 60, 46 + Math.sin(t * 0.11) * 16, Math.sin(a) * R);
-    tmpV.set(-30, 60 + Math.sin(t * 0.07) * 10, Math.sin(a) * 60);
+    const R = 380;
+    camera.position.set(Math.cos(a) * R + 60, 72 + Math.sin(t * 0.11) * 16, Math.sin(a) * R);
+    tmpV.set(-30, 62 + Math.sin(t * 0.07) * 10, Math.sin(a) * 60);
     camera.setTarget(tmpV);
     camera.fov = 0.9;
     CB.Audio.lx = camera.position.x; CB.Audio.lz = camera.position.z;
@@ -1175,7 +1622,9 @@
         if (!CB.Activities.hold && !CB.Activities.pick && !pl.dead) {
           const a = CB.Activities.query(game);
           const v = pl.inCar || pl.hidden ? null : carQuery();
+          const pq = pedQuery();
           q = a && (!v || a.d <= v.d) ? a : v;
+          if (pq && (!q || pq.d < q.d) && (pq.ok || !q)) q = pq;
           if (!q && pl.inCar && pl.car.speed < 3) q = { text: 'Get out of the car', ok: true, exit: true };
         }
         game.query = q && !q.exit ? q : null;
@@ -1186,9 +1635,11 @@
         CB.Police.update(simDt * 0.3, game);
       }
       CB.FX.update(simDt, fx, fz);
+      updateTracers(simDt);
       CB.Landmarks.update(simDt, game, fx, fz);
       CB.City.updateSignals(game.time);
       updateCasters(simDt, fx, fz);
+      autoQuality(simDt);
       if (live) updateCamera(simDt); else menuCamera(simDt);
       if (playing || live) CB.HUD.update(game, simDt);
     }

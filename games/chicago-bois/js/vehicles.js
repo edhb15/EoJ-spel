@@ -48,6 +48,8 @@
           r.add(P.box, { o: [0, base + T.H + 0.25, -L / 2 + 0.08], s: [W, 0.5, 0.12], c: col });
         }
       }
+      // side mirrors
+      if (!T.van) for (const sx of [-1, 1]) r.add(P.box, { o: [sx * (W / 2 + 0.08), base + T.H + 0.12, T.cabZ + L * T.cabL / 2 - 0.1], s: [0.16, 0.12, 0.08], c: col });
       // bumpers
       r.add(P.box, { o: [0, base + 0.12, L / 2 + 0.04], s: [W * 0.98, 0.22, 0.12], c: hex(0x2d2d2d) });
       r.add(P.box, { o: [0, base + 0.12, -L / 2 - 0.04], s: [W * 0.98, 0.22, 0.12], c: hex(0x2d2d2d) });
@@ -70,6 +72,9 @@
         const w = r.add(P.cyl, { j: [x, wr, z], s: [wr * 2, 0.28, wr * 2], roll: Math.PI / 2, c: hex(0x151515) });
         w.front = z > 0;
         this.wheels.push(w);
+        const rim = r.add(P.cyl, { j: [x + Math.sign(x) * 0.02, wr, z], s: [wr * 1.15, 0.3, wr * 1.15], roll: Math.PI / 2, c: type === 'sports' ? hex(0xd4af37) : hex(0xb8bcc2) });
+        rim.front = w.front;
+        this.wheels.push(rim);
       }
       this.wr = wr;
       // lights
@@ -476,8 +481,12 @@
       return c;
     },
     placeTraffic(car, x, z, minD, maxD, viewYaw) {
+      // only consider grid nodes within reach of (x,z)
+      const span = Math.ceil(maxD / C.P) + 1;
+      const ci = Math.round((x + C.HALF) / C.P), cj = Math.round((z + C.HALF) / C.P);
+      const i0 = Math.max(0, ci - span), i1 = Math.min(C.N, ci + span), j0 = Math.max(0, cj - span), j1 = Math.min(C.N, cj + span);
       for (let tries = 0; tries < 60; tries++) {
-        const i = M.randInt(0, C.N), j = M.randInt(0, C.N);
+        const i = M.randInt(i0, i1), j = M.randInt(j0, j1);
         const d = M.randInt(0, 3);
         if (!validDir(i, j, d)) continue;
         const f = Math.random();

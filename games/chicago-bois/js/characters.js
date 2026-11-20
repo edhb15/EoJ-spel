@@ -69,6 +69,26 @@
       this.bob = 0; this.t = Math.random() * 10;
       this.onStep = null;
     }
+    // Weapon models in the right hand (they follow the arm). Only the player gets these.
+    addWeapons() {
+      const P = CB.Pools, r = this.rig, J = [0.355, 1.47, 0];
+      const W = this.weapons = {
+        bat: [r.add(P.box, { j: J, o: [0, -0.72, 0], s: [0.065, 0.2, 0.065], c: hex(0x1d1d1d) }),
+          r.add(P.box, { j: J, o: [0, -1.1, 0], s: [0.09, 0.62, 0.09], c: hex(0xc9a063) }),
+          r.add(P.box, { j: J, o: [0, -1.42, 0], s: [0.1, 0.05, 0.1], c: hex(0xb8894f) })],
+        crowbar: [r.add(P.box, { j: J, o: [0, -1.0, 0], s: [0.045, 0.78, 0.045], c: hex(0x9e1c1c) }),
+          r.add(P.box, { j: J, o: [0, -1.38, 0.07], s: [0.045, 0.05, 0.16], c: hex(0x9e1c1c) })],
+        pistol: [r.add(P.box, { j: J, o: [0, -0.8, 0.02], s: [0.055, 0.25, 0.075], c: hex(0x26282c) }),
+          r.add(P.box, { j: J, o: [0, -0.68, -0.07], s: [0.05, 0.07, 0.12], c: hex(0x15161a) })],
+      };
+      this.weaponParts = [].concat(W.bat, W.crowbar, W.pistol);
+      this.setWeapon('fists');
+    }
+    setWeapon(w) {
+      this.weapon = w;
+      if (!this.weapons) return;
+      for (const k in this.weapons) for (const p of this.weapons[k]) p.vis = k === w;
+    }
     recolor(look) {
       this.look = look;
       const r = this.rig;
@@ -82,8 +102,18 @@
     animate(dt, speed, pose) {
       const a = this.a;
       this.t += dt;
-      let lL = 0, lR = 0, aL = 0, aR = 0, rL = -0.08, rR = 0.08, lean = 0, bob = 0;
+      let lL = 0, lR = 0, aL = 0, aR = 0, rL = -0.08, rR = 0.08, lean = 0, bob = 0, snap = false;
+      const w = this.weapon;
       switch (pose) {
+        case 'aim': // pistol pointed straight ahead, two hands
+          aR = -1.57; rR = -0.05; aL = -1.35; rL = 0.42; lean = -0.03; break;
+        case 'raise': // melee weapon raised in a threatening way
+          aR = -2.5 + Math.sin(this.t * 9) * 0.15; rR = 0.25; aL = -0.5; break;
+        case 'swing': { // fast overhead swing driven by swingP (0..1)
+          const p = this.swingP || 0, f = M.clamp((p - 0.3) / 0.45, 0, 1);
+          aR = p < 0.3 ? -2.9 : M.lerp(-2.9, -0.45, 1 - (1 - f) * (1 - f)); rR = 0.15;
+          aL = -0.6; lean = p < 0.3 ? -0.1 : 0.25; lL = -0.4; lR = 0.3; snap = true; break;
+        }
         case 'air':
           lL = -0.8; lR = 0.35; aL = -2.5; aR = -2.3; rL = -0.35; rR = 0.35; break;
         case 'handsup':
@@ -122,15 +152,19 @@
           lean = run * 0.18 + walk * 0.03;
           bob = Math.abs(Math.cos(this.phase)) * 0.06 * amp;
           if (speed < 0.2) { aL = Math.sin(this.t * 1.7) * 0.04; aR = -aL; }
+          // carry the weapon: the right arm swings less and holds it a little forward
+          if (w === 'bat' || w === 'crowbar') { aR = -0.3 + aR * 0.35; rR = 0.12; }
+          else if (w === 'pistol') { aR = -0.2 + aR * 0.4; rR = 0.1; }
         }
       }
-      const k = Math.min(1, dt * 14);
+      const k = snap ? Math.min(1, dt * 40) : Math.min(1, dt * 14);
       a.lL += (lL - a.lL) * k; a.lR += (lR - a.lR) * k; a.aL += (aL - a.aL) * k; a.aR += (aR - a.aR) * k;
       a.rL += (rL - a.rL) * k; a.rR += (rR - a.rR) * k; a.lean += (lean - a.lean) * k;
       this.bob += (bob - this.bob) * k;
       this.legL.pitch = this.shoeL.pitch = a.lL; this.legR.pitch = this.shoeR.pitch = a.lR;
       this.armL.pitch = this.handL.pitch = a.aL; this.armR.pitch = this.handR.pitch = a.aR;
       this.armL.roll = this.handL.roll = a.rL; this.armR.roll = this.handR.roll = a.rR;
+      if (this.weaponParts) for (const p of this.weaponParts) { p.pitch = a.aR; p.roll = a.rR; }
       return a.lean;
     }
     place(x, y, z, yaw, pitch, lean) {
@@ -185,7 +219,7 @@
         const opts = CROSS[this.k & 3];
         const o = opts[Math.random() < 0.5 ? 0 : 1];
         const nb = CB.City.blocks[(b.bi + o[0]) * C.N + (b.bj + o[1])];
-        if (b.bi + o[0] >= 0 && b.bi + o[0] < C.N && b.bj + o[1] >= 0 && b.bj + o[1] < C.N && nb) {
+        if (b.bi + o[0] >= 0 && b.bi + o[0] < C.N && b.bj + o[1] >= 0 && b.bj + o[1] < C.N && nb && !nb.noPeds) {
           this.setRoute(nb, o[2], Math.random() < 0.5 ? 1 : -1);
           return;
         }
@@ -197,6 +231,7 @@
     reroute() {
       let best = null, bd = 1e9;
       for (const b of CB.City.blocks) {
+        if (b.noPeds) continue;
         const d = M.dist2(this.x, this.z, b.cx, b.cz);
         if (d < bd) { bd = d; best = b; }
       }
@@ -279,6 +314,10 @@
         case 'idle':
           pose = this.pose || 'walk';
           break;
+        case 'held': // being robbed: frozen with hands up until the robber stops
+          this.t -= dt; pose = 'handsup';
+          if (this.t <= 0) { this.mode = 'flee'; this.fx = this.x + Math.sin(this.yaw); this.fz = this.z + Math.cos(this.yaw); this.t = 5; }
+          break;
       }
       if (this.mode === 'walk' || this.mode === 'flee') {
         const gy = City.groundY(this.x, this.z);
@@ -308,7 +347,10 @@
     },
     // Put ped somewhere on a sidewalk loop between minD and maxD from (x,z).
     place(p, x, z, minD, maxD, view) {
-      const blocks = CB.City.blocks;
+      // candidate blocks: walkable blocks roughly within range
+      const all = CB.City.blocks;
+      const blocks = all.filter((b) => !b.noPeds && Math.abs(b.cx - x) < maxD + 40 && Math.abs(b.cz - z) < maxD + 40);
+      if (!blocks.length) blocks.push(...all.filter((b) => !b.noPeds));
       for (let tries = 0; tries < 40; tries++) {
         const b = blocks[Math.floor(Math.random() * blocks.length)];
         const k = Math.floor(Math.random() * 4);

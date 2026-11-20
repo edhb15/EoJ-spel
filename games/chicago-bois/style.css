@@ -98,6 +98,13 @@ kbd {
 .carhp { height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; overflow: hidden; margin-top: 4px; }
 #carHpFill { height: 100%; background: linear-gradient(90deg, #ff9f43, #ffd32a); }
 
+#weaponBox { position: absolute; left: 256px; bottom: 18px; display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 10px; background: var(--panel); border-radius: 6px; border-left: 4px solid var(--red); }
+#weaponBox.in-car { opacity: 0.45; }
+#weaponIcon { font-size: 30px; line-height: 1; }
+#weaponName { display: block; font: 800 17px var(--ui); letter-spacing: 1px; text-transform: uppercase; }
+#weaponBox small { color: var(--muted); font: 600 12px var(--ui); }
+#weaponBox kbd { font-size: 11px; padding: 0 4px; }
+
 #raceHud { position: absolute; top: 110px; left: 50%; transform: translateX(-50%); text-align: center; background: var(--panel); padding: 6px 22px 8px; border-radius: 6px; border-top: 4px solid var(--gold); }
 #raceTime { font: 400 44px var(--title); color: var(--gold); }
 #raceTime.low { color: #ff5e57; animation: starBlink 0.5s infinite; }
@@ -140,6 +147,13 @@ kbd {
 
 #fps { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); font: 700 13px var(--ui); color: #9f9; }
 #crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; }
+#crosshair.gun { width: 22px; height: 22px; margin: -11px; background: none; border-radius: 0; }
+#crosshair.gun::before, #crosshair.gun::after { content: ''; position: absolute; background: rgba(255, 255, 255, 0.9); box-shadow: 0 0 2px #000; }
+#crosshair.gun::before { left: 10px; top: 0; width: 2px; height: 22px; }
+#crosshair.gun::after { top: 10px; left: 0; width: 22px; height: 2px; }
+#crosshair.gun.aim { transform: scale(0.7); }
+#weaponAmmo { display: block; font: 800 14px var(--ui); color: var(--gold); letter-spacing: 1px; }
+#weaponAmmo:empty { display: none; }
 
 #bigmapWrap { position: fixed; inset: 0; z-index: 3; background: rgba(5, 8, 14, 0.82); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; }
 .bm-head { font: 400 30px var(--title); letter-spacing: 2px; }
@@ -223,6 +237,7 @@ button.big:hover { background: #ff1f45; }
     #wantedBox { transform: scale(0.72); transform-origin: top right; }
     #objectiveBox { transform: scale(0.8); transform-origin: top left; }
     #speedo { transform: scale(0.75); transform-origin: bottom right; }
+    #weaponBox { transform: scale(0.75); transform-origin: bottom left; left: 180px; }
     #notes { top: 205px; transform: scale(0.8); transform-origin: top right; }
     #bannerBig { font-size: 52px; }
     #prompt { bottom: 90px; }

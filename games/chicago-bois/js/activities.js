@@ -5,13 +5,13 @@
   const B = BABYLON, M = CB.M, C = CB.C;
 
   const STORE_TYPES = {
-    corner: { dur: 3, heat: 25, cash: [250, 450], icon: '$', color: '#ff5252', names: ["LOU'S CORNER MART", 'QUIK-STOP MART', 'WINDY MART', "ROSIE'S MARKET", 'SOUTHSIDE GROCERY', '24/7 FOOD MART', 'BIG SHOULDERS MART'], label: 'corner store' },
-    pizza: { dur: 3, heat: 25, cash: [180, 320], icon: '$', color: '#ff5252', names: ["DEEP DISH DAN'S", 'PIZZA PALACE'], label: 'pizzeria', heal: 20 },
-    pawn: { dur: 3.5, heat: 25, cash: [500, 800], icon: '$', color: '#ff5252', names: ['MAXWELL ST PAWN'], label: 'pawn shop' },
-    electronics: { dur: 4.5, heat: 40, cash: [1200, 1800], icon: '📺', color: '#ff9f43', names: ['LAKESHORE ELECTRONICS', 'LOOP TECH'], label: 'electronics store', alarm: true },
-    jewelry: { dur: 5, heat: 40, cash: [2000, 3000], icon: '💎', color: '#ff9f43', names: ['WINDY CITY JEWELS', 'GOLD COAST DIAMONDS'], label: 'jewelry store', alarm: true },
-    bank: { dur: 8, heat: 60, cash: [4500, 6000], icon: '🏦', color: '#ff3838', names: ['SECOND CITY SAVINGS'], label: 'bank vault', alarm: true, big: true },
-    thrift: { service: true, icon: '👕', color: '#3ddc84', names: ['MAXWELL ST THRIFT', 'WICKER PARK VINTAGE'] },
+    corner: { dur: 3, heat: 25, cash: [250, 450], icon: '$', color: '#ff5252', names: ["LOU'S CORNER MART", 'QUIK-STOP MART', 'WINDY MART', "ROSIE'S MARKET", 'SOUTHSIDE GROCERY', '24/7 FOOD MART', 'BIG SHOULDERS MART', 'BRIDGEPORT MARKET', 'NORTH SIDE MART', "TONY'S FOOD & LIQ", 'LAKEVIEW MINI MART', 'PILSEN GROCERY'], label: 'corner store' },
+    pizza: { dur: 3, heat: 25, cash: [180, 320], icon: '$', color: '#ff5252', names: ["DEEP DISH DAN'S", 'PIZZA PALACE', 'TAVERN THIN CRUST'], label: 'pizzeria', heal: 20 },
+    pawn: { dur: 3.5, heat: 25, cash: [500, 800], icon: '$', color: '#ff5252', names: ['MAXWELL ST PAWN', 'RIVER PAWN & GOLD'], label: 'pawn shop' },
+    electronics: { dur: 4.5, heat: 40, cash: [1200, 1800], icon: '📺', color: '#ff9f43', names: ['LAKESHORE ELECTRONICS', 'LOOP TECH', 'MAG MILE GADGETS'], label: 'electronics store', alarm: true },
+    jewelry: { dur: 5, heat: 40, cash: [2000, 3000], icon: '💎', color: '#ff9f43', names: ['WINDY CITY JEWELS', 'GOLD COAST DIAMONDS', 'RIVERFRONT JEWELERS'], label: 'jewelry store', alarm: true },
+    bank: { dur: 8, heat: 60, cash: [4500, 6000], icon: '🏦', color: '#ff3838', names: ['SECOND CITY SAVINGS', 'LAKESIDE TRUST BANK'], label: 'bank vault', alarm: true, big: true },
+    thrift: { service: true, icon: '👕', color: '#3ddc84', names: ['MAXWELL ST THRIFT', 'WICKER PARK VINTAGE', 'LOGAN SQ SECONDHAND'] },
   };
   const DECOR = ['CAFE', 'BARBER', 'LAUNDROMAT', 'DELI', 'BOOKS', 'TACOS', 'DINER', 'HOUSE RECORDS', 'GYM', 'PHARMACY', 'HARDWARE',
     'ITALIAN BEEF', 'BLUES CLUB', 'JAZZ LOUNGE', 'BAKERY', 'DONUTS', 'FLOWERS', 'SHOES', 'TAILOR', 'POPCORN', 'PIEROGI', 'DIM SUM',
@@ -37,44 +37,55 @@
       let k = 0;
       for (const f of fronts) {
         if (k >= n) break;
-        if (f.used || (filter && !filter(f))) continue;
+        if (f.used || !f.room || (filter && !filter(f))) continue;
         if (chosen.some((c) => M.dist(c.x, c.z, f.x, f.z) < 45)) continue;
         f.used = true; f.type = type; f.name = T.names[k % T.names.length];
         f.label = addLabel(f.name);
         chosen.push(f); k++;
       }
     };
-    take('bank', 1, (f) => f.downtown);
-    take('jewelry', 2, (f) => f.downtown || f.district === 'shops');
-    take('electronics', 2);
-    take('corner', 7, (f) => !f.downtown);
-    take('pizza', 2);
-    take('pawn', 1);
-    take('thrift', 2, (f) => !f.downtown);
+    take('bank', 2, (f) => f.downtown);
+    take('jewelry', 3, (f) => f.downtown || f.district === 'shops');
+    take('electronics', 3);
+    take('corner', 12, (f) => !f.downtown);
+    take('pizza', 3);
+    take('pawn', 2);
+    take('thrift', 3, (f) => !f.downtown);
     const decorIdx = DECOR.map((d) => addLabel(d));
     const decorFronts = [];
     for (const f of fronts) if (!f.used) { f.label = decorIdx[Math.floor(R() * decorIdx.length)]; decorFronts.push(f); }
+    // furnish every walk-in room, then build the interior meshes + navigation grid
+    for (const r of City.rooms) City.furnish(r, r.sf && r.sf.type ? r.sf.type : r.kind === 'house' ? 'house' : 'shop');
+    City.finishInteriors(scene);
     City.buildSigns(scene, labels);
 
     // ----- interactables
     this.list = [];
     for (const f of chosen) {
       const T = STORE_TYPES[f.type];
+      // the interaction spot is inside, in front of the counter (the bank: at the vault)
+      const rm = f.room;
       const it = this.add({
-        kind: f.type === 'thrift' ? 'thrift' : 'store', store: f, T, x: f.x, z: f.z, r: 2.4,
+        kind: f.type === 'thrift' ? 'thrift' : 'store', store: f, T, x: rm.spot[0], z: rm.spot[1], r: 2.0,
         name: f.name, icon: T.icon, color: T.color, ring: T.service ? 'green' : 'red', mapAlways: !!T.big || f.type === 'jewelry' || f.type === 'electronics',
       });
-      // shopkeeper standing in the doorway
+      // cashier behind the counter
       const keeper = new CB.Ped(CB.randomLook());
-      keeper.x = f.x - f.nx * 1.1; keeper.z = f.z - f.nz * 1.1; keeper.y = f.yb;
-      keeper.yaw = Math.atan2(f.nx, f.nz); keeper.mode = 'idle'; keeper.pose = 'walk';
+      const kp = rm.keeper || City.roomPoint(rm, 0, rm.Dl - 0.9);
+      keeper.x = kp[0]; keeper.z = kp[1]; keeper.y = f.yb;
+      keeper.yaw = rm.keeperYaw; keeper.mode = 'idle'; keeper.pose = 'walk';
       it.keeper = keeper;
       this.keepers.push(keeper);
+    }
+    // walk-in apartments: search them for valuables
+    for (const r of City.rooms) {
+      if (r.kind !== 'house') continue;
+      this.add({ kind: 'loot', room: r, x: r.spot[0], z: r.spot[1], r: 1.7, name: 'apartment', icon: '🏠', color: '#ff9f43', ring: 'red', ringSize: 1.8, near: 50, minor: true });
     }
     // ATMs on some decor storefront walls
     let atms = 0;
     for (const f of decorFronts) {
-      if (atms >= 7 || chosen.some((c) => M.dist(c.x, c.z, f.x, f.z) < 30)) continue;
+      if (atms >= 11 || chosen.some((c) => M.dist(c.x, c.z, f.x, f.z) < 30)) continue;
       if (R() > 0.25) continue;
       const ax = f.cx + f.ux * (f.w / 2 + 0.3) + f.nx * 0.2, az = f.cz + f.uz * (f.w / 2 + 0.3) + f.nz * 0.2;
       P.sBox.add(ax, f.yb + 1.2, az, Math.abs(f.ux) > 0.5 ? 0.8 : 0.4, 1.6, Math.abs(f.ux) > 0.5 ? 0.4 : 0.8, [0.2, 0.35, 0.6]);
@@ -162,9 +173,10 @@
       case 'store': return `Rob ${it.name} <span class="heat">+${it.T.heat}% heat</span>`;
       case 'thrift': return `Buy a disguise at ${it.name} <span class="cost">$100</span>`;
       case 'atm': return 'Hack the ATM <span class="heat">+25% heat</span>';
-      case 'breakin': return `Break into the ${it.name} <span class="heat">+${it.heat}% heat</span>`;
+      case 'breakin': return `${game.player.weapon === 'crowbar' ? 'Pry open' : 'Break into'} the ${it.name} <span class="heat">+${it.heat}% heat</span>`;
       case 'graffiti': return 'Spray a tag <span class="heat">+10% heat</span>';
       case 'hotdog': return 'Buy a Chicago-style hot dog <span class="cost">$15</span>';
+      case 'loot': return 'Search the apartment for valuables <span class="heat">+10% heat</span>';
       case 'race': return `Start street race: ${it.name} <span class="heat">+40% heat</span>`;
       case 'dumpster': return game.player.hidden ? 'Climb out of the dumpster' : 'Hide in the dumpster';
       default: return it.name;
@@ -212,10 +224,11 @@
         const f = it.store;
         pl.yaw = Math.atan2(-f.nx, -f.nz);
         const T = it.T;
+        const kx = it.keeper ? it.keeper.x : f.x, kz = it.keeper ? it.keeper.z : f.z;
         this.startHold(it, T.dur, `Robbing ${it.name}…`, 'grab', game, {
           tick: (t, dt) => {
             if (it.keeper) it.keeper.pose = 'handsup';
-            if (Math.random() < dt * 6) CB.FX.burst('money', f.x - f.nx * 0.6, f.yb + 1.3, f.z - f.nz * 0.6, 3);
+            if (Math.random() < dt * 6) CB.FX.burst('money', kx, f.yb + 1.3, kz, 3);
           },
           start: () => {
             game.raiseAlarm(f.x, f.z, !!T.alarm, `${it.name} is being robbed`);
@@ -223,7 +236,7 @@
           },
           done: () => {
             const cash = M.randInt(T.cash[0], T.cash[1]);
-            CB.FX.burst('money', f.x, f.yb + 1.4, f.z, 60);
+            CB.FX.burst('money', kx, f.yb + 1.4, kz, 60);
             CB.Audio.play('cash', 1);
             game.reward(T.heat, cash, `Robbed ${it.name}`, it.icon);
             if (T.heal) game.heal(T.heal, 'Grabbed a free deep dish slice too 🍕');
@@ -268,8 +281,36 @@
         break;
       case 'breakin':
         face();
-        this.startLockpick(it, game);
+        if (pl.weapon === 'crowbar') {
+          // the crowbar skips the lock-picking: just pry the door open
+          this.startHold(it, it.hard ? 3.2 : 2.4, 'Prying the door open…', 'work', game, {
+            start: () => { CB.Audio.play('click', 0.8); game.raiseAlarm(it.x, it.z, false, 'break-in'); },
+            tick: (t, dt) => { if (Math.random() < dt * 3) CB.Audio.play('click', 0.6); },
+            done: () => {
+              CB.Audio.play('door', 1, it.x, it.z, 20);
+              const cash = M.randInt(it.cash[0], it.cash[1]);
+              CB.FX.burst('money', it.b.wx, 1.3, it.b.wz, 40);
+              game.reward(it.heat, cash, `Pried open a ${it.name}`, '🔧');
+              it.cool = game.time + 300; this.placeRing(it, false);
+            },
+          });
+        } else this.startLockpick(it, game);
         break;
+      case 'loot': {
+        face();
+        this.startHold(it, 2.6, 'Searching the drawers…', 'grab', game, {
+          start: () => { CB.Audio.play('door', 0.6); game.raiseAlarm(it.x, it.z, false, 'burglary'); },
+          tick: (t, dt) => { if (Math.random() < dt * 3) CB.Audio.play('thud', 0.25); if (Math.random() < dt * 4) CB.FX.burst('paper', it.x, 1.0, it.z, 2); },
+          done: () => {
+            const cash = Math.random() < 0.15 ? M.randInt(300, 700) : M.randInt(40, 260);
+            CB.FX.burst('money', it.x, 1.2, it.z, 30);
+            CB.Audio.play('cash', 0.8);
+            game.reward(10, cash, cash >= 300 ? 'Found a stash under the mattress!' : 'Burgled an apartment', '🏠', 'burglary');
+            it.cool = game.time + 600; this.placeRing(it, false);
+          },
+        });
+        break;
+      }
       case 'hotdog':
         if (pl.health >= 100) { CB.HUD.notify('🌭 Not hungry', 'Come back when you\'re hurt.', 'yellow'); return; }
         if (game.cash < 15) { CB.HUD.notify('💸 Not enough cash', 'A Chicago dog costs $15.', 'yellow'); return; }

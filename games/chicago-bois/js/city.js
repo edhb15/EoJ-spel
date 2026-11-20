@@ -10,7 +10,7 @@
     blocks: [], storefronts: [], dumpsters: [], props: [], pgrid: new Map(),
     graffiti: [], atms: [], hotdogs: [], breakins: [], speedCams: [], raceStarts: [], ramps: [],
     parking: [], covers: [], lamps: [], chunks: new Map(), chunkMeshes: [], benches: [],
-    playerSpawn: { x: 314, z: 34, yaw: -Math.PI / 2 },
+    playerSpawn: { x: C.EDGE + 11, z: 34, yaw: -Math.PI / 2 },
   };
 
   // ------------------------------------------------------------------ palette
@@ -30,17 +30,44 @@
   City.PAL = PAL;
 
   // ------------------------------------------------------------------ block plan
+  // Chicago River: the main branch runs east along block row RIVER_J into the lake,
+  // the south branch runs south along block column RIVER_I.
+  const RIVER_I = 3, RIVER_J = 10, RW = 13;
+  const WATER_Y = -4.2, BED = -5.5;
+  const rcx = CB.road(RIVER_I) + C.P / 2, rcz = CB.road(RIVER_J) + C.P / 2;
+  City.rivers = [
+    { x0: rcx - RW, x1: C.SHORE + 2, z0: rcz - RW, z1: rcz + RW, axis: 'x' },
+    { x0: rcx - RW, x1: rcx + RW, z0: -C.EDGE, z1: rcz + RW, axis: 'z' },
+  ];
+  City.waterY = WATER_Y;
+  City.inRiver = function (x, z) {
+    for (const r of City.rivers) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return r;
+    return null;
+  };
+  // Is this river point covered by a road bridge?
+  function bridgeAt(r, x, z) {
+    if (r.axis === 'x') { const i = Math.round((x + C.HALF) / C.P); return Math.abs(x - CB.road(i)) < C.ROAD / 2 + 0.6; }
+    const j = Math.round((z + C.HALF) / C.P); return Math.abs(z - CB.road(j)) < C.ROAD / 2 + 0.6;
+  }
+  City.onBridge = (x, z) => { const r = City.inRiver(x, z); return !!r && bridgeAt(r, x, z); };
+
+  // 16 x 16 blocks: bi runs west -> east (bi = 15 is on the lake), bj runs south -> north.
   const SPECIAL = {
-    '7,4': 'bean', '7,3': 'fountain', '3,3': 'skydeck',
-    '0,6': 'park', '5,0': 'park', '2,7': 'park', '6,6': 'park',
-    '1,4': 'parking', '6,1': 'parking', '4,7': 'parking', '3,1': 'parking',
-    '0,0': 'industrial', '1,0': 'industrial', '0,1': 'industrial', '1,1': 'industrial',
-    '2,1': 'shops', '5,6': 'shops', '6,4': 'shops', '1,6': 'shops', '6,2': 'shops', '3,6': 'shops', '0,3': 'shops', '7,6': 'shops',
+    '15,8': 'bean', '15,7': 'fountain', '7,7': 'skydeck', '10,12': 'bigjohn', '13,14': 'ballpark',
+    '0,12': 'park', '11,2': 'park', '5,15': 'park', '14,12': 'park', '1,5': 'park', '8,3': 'park', '15,11': 'park', '2,1': 'park', '12,6': 'park',
+    '1,8': 'parking', '12,3': 'parking', '8,15': 'parking', '14,5': 'parking', '5,2': 'parking', '13,10': 'parking',
+    '0,0': 'industrial', '1,0': 'industrial', '0,1': 'industrial', '1,1': 'industrial', '5,0': 'industrial', '6,0': 'industrial',
+    '14,0': 'industrial', '15,0': 'industrial', '15,1': 'industrial', '0,15': 'industrial',
+    '4,3': 'shops', '14,9': 'shops', '1,13': 'shops', '12,4': 'shops', '9,15': 'shops', '0,7': 'shops', '12,13': 'shops',
+    '7,1': 'shops', '15,4': 'shops', '0,9': 'shops', '13,2': 'shops', '2,3': 'shops', '12,8': 'shops', '7,4': 'shops',
+    '4,12': 'shops', '11,14': 'shops', '2,14': 'shops', '13,7': 'shops', '10,2': 'shops', '4,6': 'shops',
   };
   function blockType(bi, bj) {
+    if ((bi === RIVER_I && bj <= RIVER_J) || (bj === RIVER_J && bi >= RIVER_I)) return 'river';
     const k = bi + ',' + bj;
     if (SPECIAL[k]) return SPECIAL[k];
-    if (bi >= 2 && bi <= 5 && bj >= 2 && bj <= 5) return 'downtown';
+    if (bi >= 6 && bi <= 9 && bj >= 6 && bj <= 9) return 'downtown';
+    if (bi >= 5 && bi <= 10 && bj >= 5 && bj <= 13) return 'midtown';
     return 'apartments';
   }
   City.blockAt = function (x, z) {
@@ -55,12 +82,13 @@
   // ------------------------------------------------------------------ chunks
   let R; // seeded rng for generation
   function chunkAt(x, z) {
-    const cx = M.clamp(Math.floor((x + 350) / 175), 0, 4), cz = M.clamp(Math.floor((z + 350) / 175), 0, 4);
+    const S = 160, O = -(C.OUT + 60);
+    const cx = M.clamp(Math.floor((x - O) / S), 0, 9), cz = M.clamp(Math.floor((z - O) / S), 0, 9);
     const key = cx * 10 + cz;
     let ch = City.chunks.get(key);
     if (!ch) {
-      ch = { key, cx: -350 + (cx + 0.5) * 175, cz: -350 + (cz + 0.5) * 175,
-        office: new CB.Geo(), brick: new CB.Geo(), stone: new CB.Geo(), glass: new CB.Geo(), plain: new CB.Geo() };
+      ch = { key, cx: O + (cx + 0.5) * S, cz: O + (cz + 0.5) * S,
+        office: new CB.Geo(), brick: new CB.Geo(), stone: new CB.Geo(), glass: new CB.Geo(), plain: new CB.Geo({ world: 3 }), interior: new CB.Geo({ world: 2 }) };
       City.chunks.set(key, ch);
     }
     return ch;
@@ -149,11 +177,13 @@
   // Ground height (roads 0, sidewalks/blocks curb height, ramps).
   City.groundY = function (x, z) {
     let y = 0;
-    if (City.blockAt(x, z)) y = YB;
-    else if (x >= 303 && x <= C.SHORE && (z < -7 || z > 7) && z > -306 && z < 306) y = YB;
-    else if (x <= -303 || z <= -303 || z >= 303) y = YB;
-    else if (x > C.SHORE && x <= C.PIER.x1 && ((z >= C.PIER.z0 && z <= C.PIER.z1) || (x >= 392 && x <= 442 && z >= 9 && z <= 28))) y = YB;
-    else if (x > C.SHORE) y = -3; // water
+    const F = C.FERRIS, rv = City.inRiver(x, z);
+    if (rv) y = bridgeAt(rv, x, z) ? 0 : -6;
+    else if (City.blockAt(x, z)) y = YB;
+    else if (x >= C.EDGE && x <= C.SHORE && (z < -7 || z > 7) && z > -C.OUT && z < C.OUT) y = YB;
+    else if (x <= -C.EDGE || z <= -C.EDGE || z >= C.EDGE) y = YB;
+    else if (x > C.SHORE && x <= C.PIER.x1 && ((z >= C.PIER.z0 && z <= C.PIER.z1) || (x >= F.x0 && x <= F.x1 && z >= F.z0 && z <= F.z1))) y = YB;
+    else if (x > C.SHORE) y = -6; // lake
     for (let i = 0; i < City.ramps.length; i++) {
       const rp = City.ramps[i];
       const lx = x - rp.sx, lz = z - rp.sz;
@@ -179,17 +209,18 @@
   City.inWater = (x, z) => City.groundY(x, z) < -1;
 
   // ------------------------------------------------------------------ nav grid
-  const NAV = City.nav = { x0: -312, z0: -312, cs: 2, w: 0, h: 0, walk: null, opaque: null };
+  const NAV = City.nav = { x0: -(C.OUT + 6), z0: -(C.OUT + 6), cs: 2, w: 0, h: 0, walk: null, opaque: null };
   function buildNav() {
-    NAV.w = Math.ceil((474 - NAV.x0) / NAV.cs); NAV.h = Math.ceil((312 - NAV.z0) / NAV.cs);
+    NAV.w = Math.ceil((C.PIER.x1 + 4 - NAV.x0) / NAV.cs); NAV.h = Math.ceil((C.OUT + 6 - NAV.z0) / NAV.cs);
     const n = NAV.w * NAV.h;
     NAV.walk = new Uint8Array(n); NAV.opaque = new Uint8Array(n);
     for (let j = 0; j < NAV.h; j++) {
       for (let i = 0; i < NAV.w; i++) {
         const x = NAV.x0 + (i + 0.5) * NAV.cs, z = NAV.z0 + (j + 0.5) * NAV.cs;
         const inCity = x > C.WORLD.x0 && x < C.WORLD.x1 - 0.8 && z > C.WORLD.z0 && z < C.WORLD.z1;
-        const onPier = x >= C.SHORE - 1 && x < C.PIER.x1 - 0.5 && ((z > C.PIER.z0 + 0.5 && z < C.PIER.z1 - 0.5) || (x > 392 && x < 442 && z > 0 && z < 27.5));
-        NAV.walk[j * NAV.w + i] = inCity || onPier ? 1 : 0;
+        const F = C.FERRIS;
+        const onPier = x >= C.SHORE - 1 && x < C.PIER.x1 - 0.5 && ((z > C.PIER.z0 + 0.5 && z < C.PIER.z1 - 0.5) || (x > F.x0 && x < F.x1 && z > 0 && z < F.z1 - 0.5));
+        NAV.walk[j * NAV.w + i] = (inCity || onPier) && City.groundY(x, z) > -1 ? 1 : 0;
       }
     }
     for (const c of City.colliders) {
@@ -244,18 +275,260 @@
   // ------------------------------------------------------------------ geometry helpers
   let G; // ground geo
   let P; // pools
-  function wallsUV(geo, x0, z0, x1, z1, y0, y1, yb, tint, uo, vo) {
+  // door: { side, a, b, h } – leave an opening from a to b (metres along that side) up to height h.
+  function wallsUV(geo, x0, z0, x1, z1, y0, y1, yb, tint, uo, vo, door) {
     const T = 24, TH = 28;
     const v0 = vo + (y0 - yb) / TH, v1 = vo + (y1 - yb) / TH;
-    const side = (a, b, c, d, n, L, k) => {
+    // walls that start at street level get a darker band at the bottom (cheap ambient occlusion)
+    const aoH = y0 <= yb + 0.01 && y1 - y0 > 3 ? Math.min(5, (y1 - y0) * 0.5) : 0;
+    const vm = vo + (y0 + aoH - yb) / TH;
+    const side = (key, a, b, c, d, n, L, k) => {
       const col = CB.shade(tint, k);
-      geo.quad(a, b, c, d, n, col, [uo, v0, uo + L / T, v0, uo + L / T, v1, uo, v1]);
+      if (door && door.side === key && door.h > 0) {
+        const at = (s, y) => [a[0] + (b[0] - a[0]) * s / L, y, a[2] + (b[2] - a[2]) * s / L];
+        const vy = (y) => vo + (y - yb) / TH, U = (s) => uo + s / T;
+        const piece = (s0, s1, ya, yb2) => { if (s1 - s0 > 0.01 && yb2 - ya > 0.01) geo.quad(at(s0, ya), at(s1, ya), at(s1, yb2), at(s0, yb2), n, col, [U(s0), vy(ya), U(s1), vy(ya), U(s1), vy(yb2), U(s0), vy(yb2)]); };
+        piece(0, door.a, y0, y1); piece(door.b, L, y0, y1); piece(door.a, door.b, y0 + door.h, y1);
+        return;
+      }
+      if (!aoH) { geo.quad(a, b, c, d, n, col, [uo, v0, uo + L / T, v0, uo + L / T, v1, uo, v1]); return; }
+      const dark = CB.shade(tint, k * 0.62);
+      const mid = (p) => [p[0], y0 + aoH, p[2]];
+      geo.quad(a, b, mid(c), mid(d), n, null, [uo, v0, uo + L / T, v0, uo + L / T, vm, uo, vm], [dark, dark, col, col]);
+      geo.quad(mid(a), mid(b), c, d, n, col, [uo, vm, uo + L / T, vm, uo + L / T, v1, uo, v1]);
     };
-    side([x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [0, 0, -1], x1 - x0, 0.97);
-    side([x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0], [1, 0, 0], z1 - z0, 0.9);
-    side([x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [0, 0, 1], x1 - x0, 0.97);
-    side([x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [-1, 0, 0], z1 - z0, 0.9);
+    side('s', [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [0, 0, -1], x1 - x0, 0.97);
+    side('e', [x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0], [1, 0, 0], z1 - z0, 0.9);
+    side('n', [x1, y0, z1], [x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [0, 0, 1], x1 - x0, 0.97);
+    side('w', [x0, y0, z1], [x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [-1, 0, 0], z1 - z0, 0.9);
   }
+  // Plain-coloured walls (no top/bottom) with an optional door opening.
+  function sideWalls(geo, x0, z0, x1, z1, y0, y1, col, door) {
+    const sides = [
+      ['s', [x0, z0], [x1, z0], [0, 0, -1], 0.88], ['e', [x1, z0], [x1, z1], [1, 0, 0], 0.78],
+      ['n', [x1, z1], [x0, z1], [0, 0, 1], 0.88], ['w', [x0, z1], [x0, z0], [-1, 0, 0], 0.78],
+    ];
+    for (const [key, A, Bp, n, k] of sides) {
+      const c = CB.shade(col, k), L = Math.hypot(Bp[0] - A[0], Bp[1] - A[1]);
+      const at = (s, y) => [A[0] + (Bp[0] - A[0]) * s / L, y, A[1] + (Bp[1] - A[1]) * s / L];
+      const piece = (s0, s1, ya, yb2) => { if (s1 - s0 > 0.01 && yb2 - ya > 0.01) geo.quad(at(s0, ya), at(s1, ya), at(s1, yb2), at(s0, yb2), n, c); };
+      if (door && door.side === key) { piece(0, door.a, y0, y1); piece(door.b, L, y0, y1); piece(door.a, door.b, y0 + door.h, y1); }
+      else piece(0, L, y0, y1);
+    }
+  }
+  // Start corner, direction along the side and outward normal (same convention as storefront()).
+  function sideFrame(x0, z0, x1, z1, side) {
+    if (side === 's') return { ax: x0, az: z0, ux: 1, uz: 0, nx: 0, nz: -1, L: x1 - x0, depth: z1 - z0 };
+    if (side === 'n') return { ax: x1, az: z1, ux: -1, uz: 0, nx: 0, nz: 1, L: x1 - x0, depth: z1 - z0 };
+    if (side === 'e') return { ax: x1, az: z0, ux: 0, uz: 1, nx: 1, nz: 0, L: z1 - z0, depth: x1 - x0 };
+    return { ax: x0, az: z1, ux: 0, uz: -1, nx: -1, nz: 0, L: z1 - z0, depth: x1 - x0 };
+  }
+  // Where the shop door sits along a storefront wall of length L (1.6 m wide).
+  function storeDoor(L) { const w = Math.min(L - 1, 14), s0 = (L - w) / 2; return [s0 + w - 2.2, s0 + w - 0.6]; }
+  function sbox(geo, x0, y0, z0, x1, y1, z1, col) {
+    geo.box(Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1), Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1), col, { bottom: true });
+  }
+  function subtractAll(r, holes) {
+    let out = [r];
+    for (const h of holes) { const nx = []; for (const q of out) nx.push(...rectMinus(q, h)); out = nx; }
+    return out.filter((q) => q.x1 - q.x0 > 0.05 && q.z1 - q.z0 > 0.05);
+  }
+
+  // ------------------------------------------------------------------ interiors
+  // A walk-in room on the ground floor behind a door in the given side.
+  City.rooms = [];
+  function planRoom(x0, z0, x1, z1, side, yb, ceil, kind, door) {
+    const S = sideFrame(x0, z0, x1, z1, side);
+    if (S.L < 7 || S.depth < 6) return null;
+    const [d1, d2] = door;
+    const W = Math.min(S.L - 0.8, 15);
+    let sa = (S.L - W) / 2, sb = sa + W;
+    if (d1 < sa + 0.4) { sa = Math.max(0.4, d1 - 0.4); }
+    if (d2 > sb - 0.4) { sb = Math.min(S.L - 0.4, d2 + 0.4); }
+    const D = Math.min(S.depth - 0.7, 11.5);
+    const p = (s, ins) => [S.ax + S.ux * s - S.nx * ins, S.az + S.uz * s - S.nz * ins];
+    const q0 = p(sa, 0.3), q1 = p(sb, D), e0 = p(d1, -0.3), e1 = p(d2, 0.45);
+    const room = {
+      kind, side, S, sa, sb, d1, d2, D, yb, ceil,
+      x0: Math.min(q0[0], q1[0]), z0: Math.min(q0[1], q1[1]), x1: Math.max(q0[0], q1[0]), z1: Math.max(q0[1], q1[1]),
+      door: { x0: Math.min(e0[0], e1[0]), z0: Math.min(e0[1], e1[1]), x1: Math.max(e0[0], e1[0]), z1: Math.max(e0[1], e1[1]) },
+      // local frame: origin at the inside face of the front wall, middle of the room; u along the wall, v inward
+      ox: (q0[0] + p(sb, 0.3)[0]) / 2, oz: (q0[1] + p(sb, 0.3)[1]) / 2, ux: S.ux, uz: S.uz, vx: -S.nx, vz: -S.nz,
+      W: sb - sa, Dl: D - 0.3, ud: (d1 + d2) / 2 - (sa + sb) / 2,
+      doorX: S.ax + S.ux * (d1 + d2) / 2, doorZ: S.az + S.uz * (d1 + d2) / 2,
+    };
+    room.cx = (room.x0 + room.x1) / 2; room.cz = (room.z0 + room.z1) / 2;
+    return room;
+  }
+  City.roomAt = function (x, z) {
+    for (const r of City.rooms) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return r;
+    return null;
+  };
+  // local (u, v) -> world (x, z)
+  const L2W = (r, u, v) => [r.ox + r.ux * u + r.vx * v, r.oz + r.uz * u + r.vz * v];
+  City.roomPoint = L2W;
+
+  const SHOP_WALLS = [0xe9e4d8, 0xdfe8e4, 0xf1e6d0, 0xe2e2ea, 0xf4ede4].map(hex);
+  const HOUSE_WALLS = [0xd9c7a7, 0xc7d6c2, 0xe0c8c0, 0xc9cfe0, 0xe8dcc0, 0xb8cfd6].map(hex);
+  const FLOORS = { shop: [0xb9b2a6, 0xa9a59c, 0xd2c9b8], house: [0x8a6a4a, 0x9b7653, 0x6f5640] };
+
+  // Walls, floor, ceiling and door jambs of a room (drawn facing inward).
+  function roomShell(r) {
+    const ch = chunkAt(r.cx, r.cz), g = ch.interior;
+    const y0 = r.yb, y1 = r.ceil, dh = 2.55;
+    const wall = R.pick(r.kind === 'house' ? HOUSE_WALLS : SHOP_WALLS);
+    g.flat(r.x0, r.z0, r.x1, r.z1, y0 + 0.02, R.pick(FLOORS[r.kind === 'house' ? 'house' : 'shop'].map(hex)));
+    g.quad([r.x0, y1, r.z0], [r.x1, y1, r.z0], [r.x1, y1, r.z1], [r.x0, y1, r.z1], [0, -1, 0], hex(0xf2efe8));
+    // the door wall is the one facing the outside (its inward normal is -S.n)
+    const walls = [
+      { A: [r.x0, r.z0], B: [r.x1, r.z0], n: [0, 0, 1] }, { A: [r.x0, r.z1], B: [r.x1, r.z1], n: [0, 0, -1] },
+      { A: [r.x0, r.z0], B: [r.x0, r.z1], n: [1, 0, 0] }, { A: [r.x1, r.z0], B: [r.x1, r.z1], n: [-1, 0, 0] },
+    ];
+    for (const w of walls) {
+      const L = Math.hypot(w.B[0] - w.A[0], w.B[1] - w.A[1]);
+      const at = (t, y) => [w.A[0] + (w.B[0] - w.A[0]) * t / L, y, w.A[1] + (w.B[1] - w.A[1]) * t / L];
+      const piece = (t0, t1, ya, yb2, c) => { if (t1 - t0 > 0.01) g.quad(at(t0, ya), at(t1, ya), at(t1, yb2), at(t0, yb2), w.n, c); };
+      const isDoor = w.n[0] === -r.S.nx && w.n[2] === -r.S.nz;
+      const base = CB.shade(wall, 0.6);
+      if (isDoor) {
+        // door gap along this wall
+        const ta = Math.abs(w.B[0] - w.A[0]) > 0.1 ? Math.min(r.door.x0, r.door.x1) - w.A[0] : Math.min(r.door.z0, r.door.z1) - w.A[1];
+        const tb = ta + 1.6;
+        piece(0, ta, y0, y1, wall); piece(tb, L, y0, y1, wall); piece(ta, tb, y0 + dh, y1, wall);
+        piece(0, ta, y0, y0 + 0.12, base); piece(tb, L, y0, y0 + 0.12, base);
+      } else {
+        piece(0, L, y0, y1, wall);
+        piece(0, L, y0 + 0.01, y0 + 0.12, base);
+      }
+    }
+    // jambs + head of the door opening (between the inner wall and the facade)
+    const S = r.S, P1 = (s, ins, y) => [S.ax + S.ux * s - S.nx * ins, y, S.az + S.uz * s - S.nz * ins];
+    const jam = hex(0x5a4636);
+    g.quad(P1(r.d1, 0, y0), P1(r.d1, 0.3, y0), P1(r.d1, 0.3, y0 + dh), P1(r.d1, 0, y0 + dh), [S.ux, 0, S.uz], jam);
+    g.quad(P1(r.d2, 0, y0), P1(r.d2, 0.3, y0), P1(r.d2, 0.3, y0 + dh), P1(r.d2, 0, y0 + dh), [-S.ux, 0, -S.uz], jam);
+    g.quad(P1(r.d1, 0, y0 + dh), P1(r.d2, 0, y0 + dh), P1(r.d2, 0.3, y0 + dh), P1(r.d1, 0.3, y0 + dh), [0, -1, 0], jam);
+    g.flat(Math.min(P1(r.d1, -0.9, 0)[0], P1(r.d2, 0.3, 0)[0]), Math.min(P1(r.d1, -0.9, 0)[2], P1(r.d2, 0.3, 0)[2]),
+      Math.max(P1(r.d1, -0.9, 0)[0], P1(r.d2, 0.3, 0)[0]), Math.max(P1(r.d1, -0.9, 0)[2], P1(r.d2, 0.3, 0)[2]), y0 + 0.03, hex(0x7a2e2e));
+    // ceiling light panels
+    for (const f of [0.33, 0.7]) {
+      const c = L2W(r, 0, r.Dl * f);
+      g.box(c[0] - 0.7, y1 - 0.06, c[1] - 0.7, c[0] + 0.7, y1 - 0.01, c[1] + 0.7, hex(0xfffbe8), { top: true });
+    }
+  }
+
+  // Furniture box in room-local coordinates; solid ones get a collider.
+  function fbox(r, u0, v0, u1, v1, ya, yb2, col, solid) {
+    const a = L2W(r, u0, v0), b = L2W(r, u1, v1);
+    const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), z0 = Math.min(a[1], b[1]), z1 = Math.max(a[1], b[1]);
+    chunkAt(r.cx, r.cz).interior.box(x0, r.yb + ya, z0, x1, r.yb + yb2, z1, col, { bottom: true });
+    if (solid) addCollider(x0, z0, x1, z1, r.yb + yb2, 'furniture');
+    return { x0, z0, x1, z1 };
+  }
+  function glowBox(r, pool, u, v, sx, sy, sz, y) {
+    const c = L2W(r, u, v);
+    const alongU = Math.abs(r.ux) > 0.5;
+    pool.add(c[0], r.yb + y, c[1], alongU ? sx : sz, sy, alongU ? sz : sx);
+  }
+  const PRODUCT = [0xe74c3c, 0xf1c40f, 0x3498db, 0x2ecc71, 0xe67e22, 0x9b59b6, 0xecf0f1, 0x1abc9c].map(hex);
+
+  // Fill a room for its use. Sets r.spot (where the player stands to interact) and r.keeper (cashier).
+  City.furnish = function (r, type) {
+    roomShell(r);
+    const W = r.W, D = r.Dl, hw = W / 2;
+    const ud = r.ud, clearL = ud - 1.6, clearR = ud + 1.6; // keep a corridor from the door
+    const wood = hex(0x6b4a2f), dark = hex(0x2d3436);
+    const shelves = (u0, u1, rows) => {
+      for (let k = 0; k < rows; k++) {
+        const v = 2 + k * 2.4;
+        if (v + 0.8 > D - 3.6) break;
+        fbox(r, u0, v, u1, v + 0.8, 0, 1.9, hex(0x8d8d8d), true);
+        // products as coloured strips on three shelf levels
+        for (const y of [0.45, 1.0, 1.55]) {
+          let u = u0 + 0.15;
+          while (u < u1 - 0.3) { const w = Math.min(u1 - 0.15 - u, R.range(0.9, 1.8)); fbox(r, u, v - 0.06, u + w - 0.08, v + 0.86, y, y + 0.32, R.pick(PRODUCT)); u += w; }
+        }
+      }
+    };
+    const counter = (u0, u1, col) => {
+      fbox(r, u0, D - 2.4, u1, D - 1.7, 0, 1.0, col || wood, true);
+      fbox(r, u0 - 0.05, D - 2.45, u1 + 0.05, D - 1.65, 1.0, 1.08, hex(0xd8d2c4));
+      fbox(r, -0.3, D - 2.2, 0.3, D - 1.85, 1.08, 1.4, dark); // cash register
+    };
+    r.spot = L2W(r, 0, D - 3.1);
+    r.keeper = L2W(r, 0, D - 0.9);
+    r.keeperYaw = Math.atan2(-r.vx, -r.vz);
+    switch (type) {
+      case 'house': {
+        // living room: sofa, coffee table, TV, rug, bed, kitchenette, dresser
+        const L = -hw + 0.3, Rr = hw - 0.3;
+        fbox(r, L, 2.0, L + 0.9, 4.6, 0, 0.75, hex(0x34495e), true);
+        fbox(r, L, 2.0, L + 0.3, 4.6, 0.75, 1.3, hex(0x2c3e50));
+        fbox(r, L + 1.6, 2.6, L + 2.6, 4.0, 0, 0.45, wood, true);
+        chunkAt(r.cx, r.cz).interior.flat(...(() => { const a = L2W(r, L + 1.1, 1.8), b = L2W(r, L + 3.6, 4.8); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; })(), r.yb + 0.04, R.pick([0x9b2335, 0x2e6b8f, 0xc9a227].map(hex)));
+        if (Rr - (L + 4) > 1) { fbox(r, Rr - 0.5, 2.3, Rr, 4.3, 0, 0.6, dark, true); glowBox(r, P.sCrown, Rr - 0.3, 3.3, 0.06, 0.9, 1.6, 1.2); fbox(r, Rr - 0.35, 2.45, Rr - 0.25, 4.15, 0.6, 1.7, hex(0x111111)); }
+        fbox(r, L, D - 2.2, L + 1.6, D, 0, 0.55, hex(0xdcd6c8), true);
+        fbox(r, L, D - 2.2, L + 1.6, D - 1.6, 0.55, 0.8, hex(0xf4f4f4));
+        fbox(r, Rr - 2.6, D - 0.7, Rr, D, 0, 0.95, hex(0xcfc8ba), true);
+        fbox(r, Rr - 0.8, D - 0.8, Rr, D, 0, 1.9, hex(0xeef0f2), true);
+        fbox(r, -0.6, D - 0.6, 0.6, D, 0, 1.1, wood, true); // dresser (loot)
+        const pc = L2W(r, Rr - 0.5, 1.0);
+        P.sCyl.add(pc[0], r.yb + 0.25, pc[1], 0.5, 0.5, 0.5, hex(0xb9772f)); P.sSph.add(pc[0], r.yb + 0.9, pc[1], 0.9, 1.0, 0.9, hex(0x3f8f3a));
+        r.spot = L2W(r, 0, D - 1.6);
+        r.keeper = null;
+        break;
+      }
+      case 'bank': {
+        fbox(r, -hw + 1, D - 2.4, hw - 3, D - 1.7, 0, 1.1, hex(0x7d6a52), true);
+        fbox(r, -hw + 1, D - 2.4, hw - 3, D - 2.3, 1.1, 2.2, hex(0xb7d4e8));
+        const vc = L2W(r, hw - 1.6, D - 0.05);
+        P.sCyl.add(vc[0], r.yb + 1.5, vc[1], 2.6, 0.35, 2.6, hex(0x95a5a6), Math.abs(r.ux) > 0.5 ? 0 : Math.PI / 2, Math.PI / 2, 0);
+        P.sCyl.add(vc[0], r.yb + 1.5, vc[1], 0.6, 0.5, 0.6, hex(0x7f8c8d), Math.abs(r.ux) > 0.5 ? 0 : Math.PI / 2, Math.PI / 2, 0);
+        for (const u of [-hw + 1.5, hw - 1.5]) { const c = L2W(r, u, 1.3); P.sCyl.add(c[0], r.yb + 1.8, c[1], 0.5, 3.6, 0.5, hex(0xe8e2d0)); }
+        r.spot = L2W(r, hw - 1.6, D - 1.6);
+        break;
+      }
+      case 'jewelry':
+        counter(-1.5, 1.5);
+        for (const u of [-hw + 1.2, hw - 2.4]) for (let v = 2; v < D - 4; v += 2.2) {
+          fbox(r, u, v, u + 1.2, v + 0.7, 0, 0.9, hex(0x2c2c34), true);
+          fbox(r, u + 0.05, v + 0.05, u + 1.15, v + 0.65, 0.9, 1.2, hex(0xbfe3f2));
+          fbox(r, u + 0.3, v + 0.25, u + 0.5, v + 0.45, 0.92, 1.0, hex(0xf5c518));
+          fbox(r, u + 0.7, v + 0.25, u + 0.9, v + 0.45, 0.92, 1.0, hex(0xdfe6e9));
+        }
+        break;
+      case 'electronics':
+        counter(-2, 2);
+        for (let k = 0; k < 3; k++) {
+          const u = -hw + 0.3; const v = 2 + k * 2.2;
+          if (v > D - 3.5) break;
+          fbox(r, u, v, u + 0.5, v + 1.8, 0, 0.8, dark, true);
+          glowBox(r, P.sCrown, u + 0.28, v + 0.9, 0.05, 0.9, 1.5, 1.4);
+        }
+        shelves(clearR + 0.3, hw - 0.4, 2);
+        break;
+      case 'pizza':
+        counter(-2.5, 2.5, hex(0x8e3b2a));
+        { const oc = L2W(r, hw - 1.4, D - 0.6); P.sBox.add(oc[0], r.yb + 1.0, oc[1], 2.2, 2.0, 2.2, hex(0x8a3b2b)); P.sCrown2.add(oc[0] - r.vx * 1.11, r.yb + 0.9, oc[1] - r.vz * 1.11, 0.8, 0.5, 0.8); }
+        for (let v = 2; v < D - 4; v += 2.4) for (const u of [-hw + 1.5, clearL - 1.2]) {
+          if (u < -hw + 1 || u > clearL - 0.6) continue;
+          fbox(r, u - 0.6, v, u + 0.6, v + 0.9, 0.72, 0.8, hex(0xd8d2c4), true);
+          fbox(r, u - 0.06, v + 0.39, u + 0.06, v + 0.51, 0, 0.72, dark);
+        }
+        break;
+      case 'thrift':
+        counter(-1.5, 1.5);
+        for (let v = 2; v < D - 4; v += 2) {
+          fbox(r, -hw + 0.8, v, clearL - 0.2, v + 0.06, 1.5, 1.56, hex(0xaaaaaa), true);
+          for (let u = -hw + 1; u < clearL - 0.3; u += 0.35) fbox(r, u - 0.12, v - 0.25, u + 0.12, v + 0.3, 0.6, 1.45, R.pick(PRODUCT));
+        }
+        break;
+      default: // corner store, pawn shop and every other shop
+        counter(-hw + 1, Math.min(hw - 1, 2.5));
+        shelves(-hw + 0.6, clearL - 0.2, 3);
+        if (clearR + 1.6 < hw - 0.4) shelves(clearR + 0.2, hw - 0.5, 2);
+        { const fc = L2W(r, -hw + 0.45, D - 3.2); P.sBox.add(fc[0], r.yb + 1.0, fc[1], Math.abs(r.ux) > 0.5 ? 0.8 : 1.6, 2.0, Math.abs(r.ux) > 0.5 ? 1.6 : 0.8, hex(0xd6eaf8)); }
+    }
+  };
 
   // A building block with facade texture. store: array of side names with a storefront.
   function building(x0, z0, x1, z1, h, style, tint, opt) {
@@ -265,6 +538,19 @@
     const hasStore = opt.store && opt.store.length;
     const fStart = hasStore ? yb + 4.2 : yb;
     const uo = Math.floor(R() * 8) / 8, vo = Math.floor(R() * 8) / 8;
+    // walk-in room behind the shop door (or the front door of a house)
+    let room = null, door = null;
+    if (opt.room) {
+      const side = hasStore ? opt.store[0] : opt.front;
+      const F = sideFrame(x0, z0, x1, z1, side);
+      const span = hasStore ? storeDoor(F.L) : [F.L / 2 - 0.8, F.L / 2 + 0.8];
+      room = planRoom(x0, z0, x1, z1, side, yb, hasStore ? yb + 3.7 : yb + 3.3, hasStore ? 'shop' : 'house', span);
+      if (room) {
+        door = { side, a: span[0], b: span[1], h: 2.55 };
+        City.rooms.push(room);
+        opt.roomSide = side;
+      }
+    }
     if (opt.tiers) {
       // tiers: [{inset, top}] – stacked boxes getting narrower
       let y = fStart;
@@ -275,7 +561,7 @@
         y = t.top;
       }
     } else {
-      wallsUV(ch[style], x0, z0, x1, z1, fStart, h, yb, tint, uo, vo);
+      wallsUV(ch[style], x0, z0, x1, z1, fStart, h, yb, tint, uo, vo, hasStore ? null : door);
       ch.plain.flat(x0, z0, x1, z1, h, opt.roof || PAL.roof);
       // parapet
       const pc = CB.shade(tint, 0.75), t = 0.35, ph = h + (opt.parapet || 0.8);
@@ -286,17 +572,23 @@
     }
     if (hasStore) {
       const wc = opt.shopWall || R.pick(PAL.shopWall);
-      ch.plain.box(x0, yb, z0, x1, fStart, z1, wc, { top: true, bottom: true });
+      sideWalls(ch.plain, x0, z0, x1, z1, yb, fStart, wc, door);
       // trim band between store level and facade
       ch.plain.box(x0 - 0.12, fStart - 0.35, z0 - 0.12, x1 + 0.12, fStart, z1 + 0.12, CB.shade(wc, 0.7), {});
-      for (const s of opt.store) storefront(ch, x0, z0, x1, z1, s, yb, opt);
+      for (const s of opt.store) storefront(ch, x0, z0, x1, z1, s, yb, opt, room && s === opt.roomSide ? room : null);
     }
-    addCollider(x0, z0, x1, z1, opt.tiers ? opt.tiers[opt.tiers.length - 1].top : h, 'building');
-    return { x0, z0, x1, z1, h };
+    const top = opt.tiers ? opt.tiers[opt.tiers.length - 1].top : h;
+    if (room) {
+      // solid everywhere except the room and the doorway
+      for (const q of subtractAll({ x0, z0, x1, z1 }, [room, room.door])) addCollider(q.x0, q.z0, q.x1, q.z1, top, 'building');
+      if (!hasStore) { room.front = opt.front; }
+    } else addCollider(x0, z0, x1, z1, top, 'building');
+    if (yb <= YB + 0.01) contactShadow(x0, z0, x1, z1, Math.min(3.2, 1.2 + top * 0.03), 0.42);
+    return { x0, z0, x1, z1, h: top };
   }
 
   // Side geometry for one storefront: display glass + door; registers a storefront spot.
-  function storefront(ch, x0, z0, x1, z1, side, yb, opt) {
+  function storefront(ch, x0, z0, x1, z1, side, yb, opt, room) {
     let ax, az, bx, bz, nx, nz;
     if (side === 's') { ax = x0; az = z0; bx = x1; bz = z0; nx = 0; nz = -1; }
     else if (side === 'n') { ax = x1; az = z1; bx = x0; bz = z1; nx = 0; nz = 1; }
@@ -310,10 +602,18 @@
     const w = Math.min(L - 1, 14), s0 = (L - w) / 2;
     const pt = (s, y, o) => [ax + ux * s + nx * (off + (o || 0)), y, az + uz * s + nz * (off + (o || 0))];
     const glass = [0.13, 0.17, 0.22];
-    const g1 = s0 + 0.5, g2 = s0 + w - 2.4, d1 = s0 + w - 2.0, d2 = s0 + w - 0.6;
+    const [d1, d2] = storeDoor(L);
+    const g1 = s0 + 0.5, g2 = d1 - 0.3;
     ch.plain.quad(pt(g1, yb + 0.6), pt(g2, yb + 0.6), pt(g2, yb + 3.1), pt(g1, yb + 3.1), [nx, 0, nz], glass);
     ch.plain.quad(pt(g1, yb + 0.6), pt(g2, yb + 0.6), pt(g2, yb + 0.75, 0.02), pt(g1, yb + 0.75, 0.02), [nx, 0, nz], [0.5, 0.5, 0.5]);
-    ch.plain.quad(pt(d1, yb), pt(d2, yb), pt(d2, yb + 2.5), pt(d1, yb + 2.5), [nx, 0, nz], [0.24, 0.17, 0.12]);
+    if (!room) ch.plain.quad(pt(d1, yb), pt(d2, yb), pt(d2, yb + 2.5), pt(d1, yb + 2.5), [nx, 0, nz], [0.24, 0.17, 0.12]);
+    else {
+      // open doorway with a frame
+      const fr = [0.2, 0.15, 0.1];
+      sbox(ch.plain, ax + ux * (d1 - 0.12) + nx * 0.02, yb, az + uz * (d1 - 0.12) + nz * 0.02, ax + ux * d1 + nx * 0.14, yb + 2.65, az + uz * d1 + nz * 0.14, fr);
+      sbox(ch.plain, ax + ux * d2 + nx * 0.02, yb, az + uz * d2 + nz * 0.02, ax + ux * (d2 + 0.12) + nx * 0.14, yb + 2.65, az + uz * (d2 + 0.12) + nz * 0.14, fr);
+      sbox(ch.plain, ax + ux * (d1 - 0.12) + nx * 0.02, yb + 2.55, az + uz * (d1 - 0.12) + nz * 0.02, ax + ux * (d2 + 0.12) + nx * 0.14, yb + 2.75, az + uz * (d2 + 0.12) + nz * 0.14, fr);
+    }
     const mid = s0 + w / 2;
     const door = (d1 + d2) / 2;
     City.storefronts.push({
@@ -321,17 +621,28 @@
       cx: ax + ux * mid, cz: az + uz * mid, ux, uz, nx, nz, w, yb,
       sx: ax + ux * mid + nx * 0.12, sz: az + uz * mid + nz * 0.12,
       winX: ax + ux * ((g1 + g2) / 2) + nx * 1.4, winZ: az + uz * ((g1 + g2) / 2) + nz * 1.4,
-      downtown: !!opt.downtown, district: opt.district || 'res', used: false,
+      downtown: !!opt.downtown, district: opt.district || 'res', used: false, room,
     });
+    if (room) room.sf = City.storefronts[City.storefronts.length - 1];
   }
 
   // ------------------------------------------------------------------ small props
-  function tree(x, z, s) {
+  function tree(x, z, s, kind) {
     s = s || R.range(0.85, 1.25);
+    if (kind === 'pine') {
+      const g = R.pick([hex(0x2f6b3a), hex(0x3b7a44), hex(0x285c33)]);
+      P.sCyl.add(x, YB + 1, z, 0.3 * s, 2, 0.3 * s, hex(0x5b3d26));
+      P.sCone.add(x, YB + 3.2 * s, z, 3.4 * s, 3.6 * s, 3.4 * s, g);
+      P.sCone.add(x, YB + 5.2 * s, z, 2.5 * s, 3.0 * s, 2.5 * s, CB.shade(g, 1.1));
+      P.sCone.add(x, YB + 6.9 * s, z, 1.5 * s, 2.4 * s, 1.5 * s, CB.shade(g, 1.2));
+      addCollider(x - 0.25, z - 0.25, x + 0.25, z + 0.25, 4, 'tree');
+      return;
+    }
     const g = R.pick([PAL.grass, PAL.grass2, hex(0x4f8a3c), hex(0x76b04e)]);
     P.sCyl.add(x, YB + 1.3 * s, z, 0.32 * s, 2.6 * s, 0.32 * s, hex(0x6b4a2f));
     P.sSph.add(x, YB + 3.4 * s, z, 3.2 * s, 2.8 * s, 3.2 * s, g);
     P.sSph.add(x + 0.5 * s, YB + 4.4 * s, z - 0.3 * s, 2.2 * s, 2.0 * s, 2.2 * s, CB.shade(g, 1.12));
+    P.sSph.add(x - 0.7 * s, YB + 3.9 * s, z + 0.6 * s, 2.0 * s, 1.7 * s, 2.0 * s, CB.shade(g, 0.9));
     addCollider(x - 0.25, z - 0.25, x + 0.25, z + 0.25, 4, 'tree');
   }
   function lamp(x, z, nx, nz) {
@@ -427,55 +738,247 @@
   }
 
   // ------------------------------------------------------------------ ground
-  function groundBase() {
-    // asphalt everywhere (city + beyond)
-    G.flat(-520, -520, C.SHORE, 520, 0, PAL.asphalt);
-    // outer sidewalks along the city edge
-    const o = 303, e = 306, far = 345;
-    G.box(-far, 0, -far, -o, YB, far, PAL.sidewalk, { bottom: true });
-    G.box(-o, 0, o, o, YB, far, PAL.sidewalk, { bottom: true });
-    G.box(-o, 0, -far, o, YB, -o, PAL.sidewalk, { bottom: true });
-    // lake-side strip (grass/path/sand), with a gap where the street runs onto the pier
-    for (const [z0, z1] of [[-far, -7], [7, far]]) {
-      G.box(o, 0, z0, C.SHORE, YB, z1, PAL.grass, { bottom: true });
-      G.flat(320, z0, 325, z1, YB + 0.01, PAL.path);
-      G.flat(327, z0, C.SHORE, z1, YB + 0.01, PAL.sand);
+  // Rectangle minus rectangle -> up to four rectangles.
+  function rectMinus(r, h) {
+    if (h.x0 >= r.x1 || h.x1 <= r.x0 || h.z0 >= r.z1 || h.z1 <= r.z0) return [r];
+    const out = [];
+    if (h.x0 > r.x0) out.push({ x0: r.x0, z0: r.z0, x1: h.x0, z1: r.z1 });
+    if (h.x1 < r.x1) out.push({ x0: h.x1, z0: r.z0, x1: r.x1, z1: r.z1 });
+    const mx0 = Math.max(r.x0, h.x0), mx1 = Math.min(r.x1, h.x1);
+    if (h.z0 > r.z0) out.push({ x0: mx0, z0: r.z0, x1: mx1, z1: h.z0 });
+    if (h.z1 < r.z1) out.push({ x0: mx0, z0: h.z1, x1: mx1, z1: r.z1 });
+    return out;
+  }
+  // Parts of a rectangle that are not river.
+  function landPieces(r) {
+    let out = [{ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1 }];
+    for (const rv of City.rivers) { const nx = []; for (const q of out) nx.push(...rectMinus(q, rv)); out = nx; }
+    return out.filter((q) => q.x1 - q.x0 > 0.3 && q.z1 - q.z0 > 0.3);
+  }
+  City.landPieces = landPieces;
+
+  // Railing with posts + collider (axis-aligned).
+  function rail(x0, z0, x1, z1, y) {
+    y = y == null ? YB : y;
+    const ch = chunkAt((x0 + x1) / 2, (z0 + z1) / 2).plain;
+    ch.box(x0, y + 0.95, z0, x1, y + 1.08, z1, hex(0x7f8c8d), {});
+    const len = Math.max(x1 - x0, z1 - z0), n = Math.floor(len / 2.5);
+    for (let k = 0; k <= n; k++) {
+      const t = k / Math.max(1, n);
+      P.sBox.add(x0 + (x1 - x0) * t, y + 0.5, z0 + (z1 - z0) * t, 0.08, 1.0, 0.08, hex(0x7f8c8d));
     }
-    // seawall
-    G.quad([C.SHORE, -3, -900], [C.SHORE, -3, 900], [C.SHORE, YB, 900], [C.SHORE, YB, -900], [1, 0, 0], hex(0x8d8a82));
+    addCollider(x0, z0, x1, z1, y + 1.1, 'rail');
+  }
+
+  function groundBase() {
+    // asphalt everywhere except the river channels
+    for (const q of landPieces({ x0: -C.OUT - 1600, z0: -C.OUT - 1600, x1: C.SHORE, z1: C.OUT + 1600 })) G.flat(q.x0, q.z0, q.x1, q.z1, 0, PAL.asphalt);
+    // outer sidewalks along the city edge (down to the river bed so they also form channel walls)
+    const o = C.EDGE, far = C.OUT + 45;
+    G.box(-far, BED, -far, -o, YB, far, PAL.sidewalk, { bottom: true });
+    G.box(-o, BED, o, o, YB, far, PAL.sidewalk, { bottom: true });
+    G.box(-o, BED, -far, o, YB, -o, PAL.sidewalk, { bottom: true });
+    // lake-side strip (grass/path/sand), with gaps for the pier street and the river mouth
+    const rm = City.rivers[0];
+    for (const [z0, z1] of [[-far, -7], [7, rm.z0], [rm.z1, far]]) {
+      G.box(o, BED, z0, C.SHORE, YB, z1, PAL.grass, { bottom: true });
+      G.flat(o + 17, z0, o + 22, z1, YB + 0.01, PAL.path);
+      G.flat(o + 24, z0, C.SHORE, z1, YB + 0.01, PAL.sand);
+    }
+    // seawall (the lake sits low like the river)
+    G.quad([C.SHORE, BED, -1200], [C.SHORE, BED, 1200], [C.SHORE, YB, 1200], [C.SHORE, YB, -1200], [1, 0, 0], hex(0x8d8a82));
     // pier deck
-    const PR = C.PIER;
+    const PR = C.PIER, F = C.FERRIS;
     G.box(PR.x0, -1, PR.z0, PR.x1, YB, PR.z1, PAL.deck, {});
-    G.box(392, -1, PR.z1, 442, YB, 28, PAL.deck, {});
+    G.box(F.x0, -1, PR.z1, F.x1, YB, F.z1, PAL.deck, {});
     for (let x = PR.x0 + 6; x < PR.x1; x += 12) {
-      P.sCyl.add(x, -1.2, PR.z0 + 0.5, 0.6, 2, 0.6, hex(0x4a3a2a));
-      P.sCyl.add(x, -1.2, PR.z1 - 0.5, 0.6, 2, 0.6, hex(0x4a3a2a));
+      P.sCyl.add(x, (WATER_Y - 1) / 2, PR.z0 + 0.5, 0.6, -WATER_Y, 0.6, hex(0x4a3a2a));
+      P.sCyl.add(x, (WATER_Y - 1) / 2, PR.z1 - 0.5, 0.6, -WATER_Y, 0.6, hex(0x4a3a2a));
     }
     // markings on the pier road
-    for (let x = 300; x < PR.x1 - 4; x += 6) G.flat(x, -0.12, x + 3, 0.12, (x < C.SHORE ? 0 : YB) + 0.012, PAL.yellow);
-    // railings along the shore + pier (colliders)
-    const rail = (x0, z0, x1, z1) => {
-      G.box(x0, YB + 0.95, z0, x1, YB + 1.08, z1, hex(0x7f8c8d));
-      const len = Math.max(x1 - x0, z1 - z0), n = Math.floor(len / 2.5);
-      for (let k = 0; k <= n; k++) {
-        const t = k / Math.max(1, n);
-        const px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;
-        P.sBox.add(px, YB + 0.5, pz, 0.08, 1.0, 0.08, hex(0x7f8c8d));
-      }
-      addCollider(x0, z0, x1, z1, YB + 1.1, 'rail');
-    };
-    rail(C.SHORE - 0.25, -306, C.SHORE - 0.05, -7);
-    rail(C.SHORE - 0.25, 7, C.SHORE - 0.05, 306);
+    for (let x = C.EDGE - 3; x < PR.x1 - 4; x += 6) G.flat(x, -0.12, x + 3, 0.12, (x < C.SHORE ? 0 : YB) + 0.012, PAL.yellow);
+    // railings along the shore, the river mouth and the pier
+    rail(C.SHORE - 0.25, -C.OUT, C.SHORE - 0.05, -7);
+    rail(C.SHORE - 0.25, 7, C.SHORE - 0.05, rm.z0);
+    rail(C.SHORE - 0.25, rm.z1, C.SHORE - 0.05, C.OUT);
+    rail(C.EDGE + 0.6, rm.z0 - 0.25, C.SHORE, rm.z0 - 0.05);
+    rail(C.EDGE + 0.6, rm.z1 + 0.05, C.SHORE, rm.z1 + 0.25);
     rail(C.SHORE, PR.z0 - 0.1, PR.x1, PR.z0 + 0.1);
-    rail(C.SHORE, PR.z1 - 0.1, 392, PR.z1 + 0.1);
-    rail(442, PR.z1 - 0.1, PR.x1, PR.z1 + 0.1);
-    rail(392 - 0.1, PR.z1, 392 + 0.1, 28);
-    rail(442 - 0.1, PR.z1, 442 + 0.1, 28);
-    rail(392, 28 - 0.1, 442, 28 + 0.1);
+    rail(C.SHORE, PR.z1 - 0.1, F.x0, PR.z1 + 0.1);
+    rail(F.x1, PR.z1 - 0.1, PR.x1, PR.z1 + 0.1);
+    rail(F.x0 - 0.1, PR.z1, F.x0 + 0.1, F.z1);
+    rail(F.x1 - 0.1, PR.z1, F.x1 + 0.1, F.z1);
+    rail(F.x0, F.z1 - 0.1, F.x1, F.z1 + 0.1);
     rail(PR.x1 - 0.1, PR.z0, PR.x1 + 0.1, PR.z1);
     // block the street ends on the lake strip edges (north/south)
-    addCollider(303, 306, 345, 310, 20, 'wall');
-    addCollider(303, -310, 345, -306, 20, 'wall');
+    addCollider(C.EDGE, C.OUT, far, C.OUT + 4, 20, 'wall');
+    addCollider(C.EDGE, -C.OUT - 4, far, -C.OUT, 20, 'wall');
+  }
+
+  // ------------------------------------------------------------------ river
+  // Road bridges over the river (deck, steel side girders, abutments).
+  function bridge(axis, c, a0, a1, k) {
+    const hw = C.ROAD / 2 + 0.6;
+    const steel = k % 2 ? hex(0x8e2b22) : hex(0x2f5d4a);
+    const g = chunkAt(axis === 'z' ? c : (a0 + a1) / 2, axis === 'z' ? (a0 + a1) / 2 : c).plain;
+    const A0 = a0 - 1, A1 = a1 + 1;
+    if (axis === 'z') {
+      G.box(c - hw, -1.1, A0, c + hw, 0, A1, PAL.asphalt, {});
+      for (const sx of [-1, 1]) {
+        const x = c + sx * hw;
+        g.box(x - 0.3, 0, A0, x + 0.3, 0.35, A1, steel, {});
+        g.box(x - 0.15, 1.25, A0, x + 0.15, 1.45, A1, steel, {});
+        for (let z = A0 + 1; z < A1; z += 2.6) P.sBox.add(x, 0.8, z, 0.14, 1.0, 0.14, steel);
+        for (let z = A0 + 2; z < A1 - 2; z += 5.2) P.sBox.add(x, 0.75, z + 1.3, 0.12, 1.6, 0.12, steel, 0, 0.9, 0);
+        addCollider(x - 0.3, A0, x + 0.3, A1, 1.45, 'rail');
+        P.sCyl.add(x, 2.6, A0 + 0.5, 0.2, 5.2, 0.2, steel);
+        P.sCyl.add(x, 2.6, A1 - 0.5, 0.2, 5.2, 0.2, steel);
+        P.sLamp.add(x, 5.3, A0 + 0.5, 0.45, 0.35, 0.45); P.sLamp.add(x, 5.3, A1 - 0.5, 0.45, 0.35, 0.45);
+      }
+      g.quad([c - hw, BED, a0], [c + hw, BED, a0], [c + hw, -1.1, a0], [c - hw, -1.1, a0], [0, 0, 1], hex(0x7d7a72));
+      g.quad([c - hw, BED, a1], [c + hw, BED, a1], [c + hw, -1.1, a1], [c - hw, -1.1, a1], [0, 0, -1], hex(0x7d7a72));
+    } else {
+      G.box(A0, -1.1, c - hw, A1, 0, c + hw, PAL.asphalt, {});
+      for (const sz of [-1, 1]) {
+        const z = c + sz * hw;
+        g.box(A0, 0, z - 0.3, A1, 0.35, z + 0.3, steel, {});
+        g.box(A0, 1.25, z - 0.15, A1, 1.45, z + 0.15, steel, {});
+        for (let x = A0 + 1; x < A1; x += 2.6) P.sBox.add(x, 0.8, z, 0.14, 1.0, 0.14, steel);
+        for (let x = A0 + 2; x < A1 - 2; x += 5.2) P.sBox.add(x + 1.3, 0.75, z, 0.12, 1.6, 0.12, steel, 0, 0, 0.9);
+        addCollider(A0, z - 0.3, A1, z + 0.3, 1.45, 'rail');
+        P.sCyl.add(A0 + 0.5, 2.6, z, 0.2, 5.2, 0.2, steel); P.sCyl.add(A1 - 0.5, 2.6, z, 0.2, 5.2, 0.2, steel);
+        P.sLamp.add(A0 + 0.5, 5.3, z, 0.45, 0.35, 0.45); P.sLamp.add(A1 - 0.5, 5.3, z, 0.45, 0.35, 0.45);
+      }
+      g.quad([a0, BED, c - hw], [a0, BED, c + hw], [a0, -1.1, c + hw], [a0, -1.1, c - hw], [1, 0, 0], hex(0x7d7a72));
+      g.quad([a1, BED, c - hw], [a1, BED, c + hw], [a1, -1.1, c + hw], [a1, -1.1, c - hw], [-1, 0, 0], hex(0x7d7a72));
+    }
+  }
+  function riverBridges() {
+    let k = 0;
+    const r1 = City.rivers[0], r2 = City.rivers[1];
+    for (let i = 0; i <= C.N; i++) { const x = CB.road(i); if (x - 7 > r1.x0 && x < r1.x1) bridge('z', x, r1.z0, r1.z1, k++); }
+    for (let j = 0; j <= C.N; j++) { const z = CB.road(j); if (z + 7 >= r2.z0 && z - 7 < r1.z0) bridge('x', z, r2.x0, r2.x1, k++); }
+    // the river ends at the outer sidewalk in the south: close the channel
+    G.quad([r2.x0, BED, r2.z0], [r2.x1, BED, r2.z0], [r2.x1, 0, r2.z0], [r2.x0, 0, r2.z0], [0, 0, 1], hex(0x8d8a82));
+  }
+
+  // A block cut by the river: concrete banks with a riverwalk and slim towers.
+  function genRiverBlock(b) {
+    const near = b.bi >= 5 && b.bi <= 11;
+    for (const pc of landPieces(b)) {
+      G.box(pc.x0, BED, pc.z0, pc.x1, YB, pc.z1, PAL.sidewalk, { bottom: true });
+      // find edges that face the water
+      const edges = [
+        { n: [0, -1], a: [pc.x0, pc.z0], b: [pc.x1, pc.z0] }, { n: [0, 1], a: [pc.x0, pc.z1], b: [pc.x1, pc.z1] },
+        { n: [-1, 0], a: [pc.x0, pc.z0], b: [pc.x0, pc.z1] }, { n: [1, 0], a: [pc.x1, pc.z0], b: [pc.x1, pc.z1] },
+      ];
+      let main = null;
+      for (const e of edges) {
+        const L = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]);
+        const ux = (e.b[0] - e.a[0]) / L, uz = (e.b[1] - e.a[1]) / L;
+        // runs of water along this edge
+        let s0 = -1;
+        const runs = [];
+        for (let t = 0; t <= L + 0.01; t += 1) {
+          const tt = Math.min(t, L);
+          const wet = City.inRiver(e.a[0] + ux * tt + e.n[0] * 1.2, e.a[1] + uz * tt + e.n[1] * 1.2);
+          if (wet && s0 < 0) s0 = tt;
+          if ((!wet || tt >= L) && s0 >= 0) { runs.push([s0, wet ? tt : tt - 1]); s0 = -1; }
+        }
+        for (const [t0, t1] of runs) {
+          if (t1 - t0 < 2) continue;
+          const p = (t, ins) => [e.a[0] + ux * t - e.n[0] * ins, e.a[1] + uz * t - e.n[1] * ins];
+          const q0 = p(t0, 0.15), q1 = p(t1, 0.35);
+          rail(Math.min(q0[0], q1[0]), Math.min(q0[1], q1[1]), Math.max(q0[0], q1[0]), Math.max(q0[1], q1[1]));
+          const w0 = p(t0, 0.5), w1 = p(t1, 4.5);
+          G.flat(Math.min(w0[0], w1[0]), Math.min(w0[1], w1[1]), Math.max(w0[0], w1[0]), Math.max(w0[1], w1[1]), YB + 0.008, PAL.path);
+          for (let t = t0 + 6; t < t1 - 4; t += 18) { const l = p(t, 4.2); lamp(l[0], l[1], e.n[0], e.n[1]); }
+          for (let t = t0 + 12; t < t1 - 4; t += 18) { const l = p(t, 1.4); bench(l[0], l[1], Math.atan2(e.n[0], e.n[1])); }
+          if (t1 - t0 > L * 0.8) main = { e, ux, uz, L, p };
+        }
+      }
+      if (!main) {
+        for (let k = 0; k < 4; k++) tree(R.range(pc.x0 + 2, pc.x1 - 2), R.range(pc.z0 + 2, pc.z1 - 2));
+        continue;
+      }
+      // building strip between the riverwalk and the street sidewalk
+      const depth = Math.abs(main.e.n[0]) ? pc.x1 - pc.x0 : pc.z1 - pc.z0;
+      const d0 = 5.5, d1 = depth - C.SIDE;
+      if (d1 - d0 < 7) continue;
+      if (b.bi === 8 && main.e.n[1] < 0) { corncobs(main, d0, d1); continue; }
+      const streetSide = main.e.n[1] > 0 ? 's' : main.e.n[1] < 0 ? 'n' : main.e.n[0] > 0 ? 'w' : 'e';
+      let t = 2;
+      while (t < main.L - 6) {
+        let w = R.range(14, 22);
+        if (main.L - 2 - (t + w) < 8) w = main.L - 2 - t;
+        const a = main.p(t, d0), c = main.p(t + w, d1);
+        const x0 = Math.min(a[0], c[0]), x1 = Math.max(a[0], c[0]), z0 = Math.min(a[1], c[1]), z1 = Math.max(a[1], c[1]);
+        const floors = near ? R.int(8, 30) : R.int(3, 9);
+        const style = near ? R.pick(['glass', 'glass', 'stone', 'office']) : R.pick(['brick', 'office', 'stone']);
+        const tint = R.pick(PAL[style]);
+        const H = YB + 4.2 + floors * 3.5;
+        building(x0, z0, x1, z1, H, style, tint, { store: [streetSide], district: near ? 'downtown' : 'res', downtown: near, room: R() < 0.5 });
+        crown(x0, z0, x1, z1, H, style, tint);
+        t += w + 1.5;
+      }
+    }
+  }
+
+  // Twin round "corncob" towers with scalloped balconies.
+  function corncobs(main, d0, d1) {
+    const r = Math.min(7, (d1 - d0) / 2), mid = (d0 + d1) / 2;
+    for (const t of [main.L * 0.32, main.L * 0.68]) {
+      const c = main.p(t, mid);
+      const H = 96;
+      P.sCyl.add(c[0], YB + H / 2, c[1], r * 1.4, H, r * 1.4, hex(0x3a3f47));
+      for (let y = YB + 3; y < YB + H; y += 2.9) P.sCyl.add(c[0], y, c[1], r * 2, 0.32, r * 2, y < 22 ? hex(0x9ba3ab) : hex(0xe9e6df));
+      P.sCyl.add(c[0], YB + H + 0.6, c[1], r * 2.05, 1.2, r * 2.05, hex(0xe9e6df));
+      P.sCrown2.add(c[0], YB + H + 1.4, c[1], r * 1.6, 0.35, r * 1.6);
+      addCollider(c[0] - r, c[1] - r, c[0] + r, c[1] + r, YB + H + 1, 'building');
+      contactShadow(c[0] - r, c[1] - r, c[0] + r, c[1] + r, 3, 0.4);
+    }
+  }
+
+  // Roof-top details for tall towers: crown lights, stepped tops, spires.
+  function crown(x0, z0, x1, z1, H, style, tint, inset) {
+    if (H < 40) { if (R() < 0.5) acUnit((x0 + x1) / 2, (z0 + z1) / 2, H); return; }
+    const i = inset || 0, a = x0 + i, b = z0 + i, c = x1 - i, d = z1 - i;
+    const cx = (a + c) / 2, cz = (b + d) / 2, w = c - a, dd = d - b;
+    const ch = chunkAt(cx, cz).plain;
+    if (style === 'stone' && R() < 0.75) {
+      // stepped art-deco top + spire
+      let y = H, k = 0.82;
+      for (let s = 0; s < 3; s++) {
+        const hw = w * k / 2, hd = dd * k / 2, h = R.range(3, 6);
+        ch.box(cx - hw, y, cz - hd, cx + hw, y + h, cz + hd, CB.shade(tint, 0.92 - s * 0.05), { bottom: true });
+        y += h; k *= 0.7;
+      }
+      P.sCone.add(cx, y + 4, cz, Math.min(w, dd) * 0.3, 8, Math.min(w, dd) * 0.3, CB.shade(tint, 0.8));
+      if (R() < 0.6) P.sCrown2.add(cx, H + 0.4, cz, w * 0.84, 0.4, dd * 0.84);
+      return;
+    }
+    // light band around the roof edge
+    const pool = R() < 0.6 ? P.sCrown : P.sCrown2;
+    if (R() < 0.7) {
+      pool.add(cx, H + 0.5, b + 0.1, w, 0.5, 0.25); pool.add(cx, H + 0.5, d - 0.1, w, 0.5, 0.25);
+      pool.add(a + 0.1, H + 0.5, cz, 0.25, 0.5, dd); pool.add(c - 0.1, H + 0.5, cz, 0.25, 0.5, dd);
+    }
+    // mechanical penthouse
+    ch.box(cx - w * 0.3, H, cz - dd * 0.3, cx + w * 0.3, H + R.range(3, 6), cz + dd * 0.3, CB.shade(tint, 0.7), { bottom: true });
+    if (H > 90 && R() < 0.7) {
+      P.sCyl.add(cx, H + 15, cz, 0.45, 26, 0.45, hex(0xbdc3c7));
+      P.sBlink.add(cx, H + 28.3, cz, 0.8, 0.8, 0.8);
+    }
+  }
+
+  // Soft dark strips on the ground around a footprint (contact shadow).
+  function contactShadow(x0, z0, x1, z1, w, a) {
+    const y = YB + 0.02, D = [0, 0, 0, a], T = [0, 0, 0, 0];
+    const A = City.aoGeo;
+    A.quad([x0 - w, y, z0 - w], [x1 + w, y, z0 - w], [x1, y, z0], [x0, y, z0], [0, 1, 0], null, null, [T, T, D, D]);
+    A.quad([x0, y, z1], [x1, y, z1], [x1 + w, y, z1 + w], [x0 - w, y, z1 + w], [0, 1, 0], null, null, [D, D, T, T]);
+    A.quad([x0 - w, y, z0 - w], [x0, y, z0], [x0, y, z1], [x0 - w, y, z1 + w], [0, 1, 0], null, null, [T, D, D, T]);
+    A.quad([x1, y, z0], [x1 + w, y, z0 - w], [x1 + w, y, z1 + w], [x1, y, z1], [0, 1, 0], null, null, [D, T, T, D]);
   }
 
   function roadMarkings() {
@@ -487,6 +990,8 @@
         // double yellow centre lines (N-S road at x = rc and E-W road at z = rc)
         G.flat(rc - 0.25, a, rc - 0.1, b, h, PAL.yellow); G.flat(rc + 0.1, a, rc + 0.25, b, h, PAL.yellow);
         G.flat(a, rc - 0.25, b, rc - 0.1, h, PAL.yellow); G.flat(a, rc + 0.1, b, rc + 0.25, h, PAL.yellow);
+        // white edge lines between the driving lanes and the parking lanes
+        for (const o of [-4.4, 4.3]) { G.flat(rc + o, a, rc + o + 0.1, b, h, PAL.white); G.flat(a, rc + o, b, rc + o + 0.1, h, PAL.white); }
       }
     }
     // crosswalks + stop lines at every intersection approach
@@ -518,7 +1023,7 @@
     // curb edge darker strip
     const s = C.SIDE;
     const surf = { park: PAL.grass, bean: PAL.plaza, fountain: PAL.grass, parking: PAL.lot, industrial: hex(0x8a8780),
-      downtown: hex(0xbcb6aa), skydeck: hex(0xbcb6aa), apartments: hex(0x6a9a4e), shops: PAL.lot }[b.type];
+      downtown: hex(0xbcb6aa), skydeck: hex(0xbcb6aa), midtown: hex(0xb7b1a5), bigjohn: hex(0xa9a49a), ballpark: hex(0x3f8f3a), apartments: hex(0x6a9a4e), shops: PAL.lot }[b.type];
     G.flat(b.ix0, b.iz0, b.ix1, b.iz1, YB + 0.004, surf);
     // sidewalk slab joints
     for (let x = b.x0 + 3; x < b.x1; x += 3) {
@@ -545,7 +1050,8 @@
       const s = sides[si];
       const L = 60, ux = (s.bx - s.ax) / L, uz = (s.bz - s.az) / L;
       const at = (t, inset) => ({ x: s.ax + ux * t - s.nx * inset, z: s.az + uz * t - s.nz * inset });
-      const blocked = (t) => alleyX != null && s.nz !== 0 && Math.abs(s.ax + ux * t - alleyX) < 5;
+      const wet = (t) => City.inRiver(s.ax + ux * t - s.nx * 1.5, s.az + uz * t - s.nz * 1.5) || City.inRiver(s.ax + ux * t, s.az + uz * t);
+      const blocked = (t) => wet(t) || wet(t - 2) || wet(t + 2) || (alleyX != null && s.nz !== 0 && Math.abs(s.ax + ux * t - alleyX) < 5);
       for (const t of [20, 40]) {
         if (blocked(t)) continue;
         const p = at(t, ins);
@@ -560,12 +1066,12 @@
       }
       // corner furniture (near the start of each side)
       const c1 = at(8.5, 0.6);
-      if (R() < 0.55) breakable('hydrant', c1.x, c1.z, 0);
+      if (R() < 0.55 && !blocked(8.5)) breakable('hydrant', c1.x, c1.z, 0);
       const c2 = at(10.5, 0.75);
-      if (R() < 0.5) breakable('trash', c2.x, c2.z, 0);
+      if (R() < 0.5 && !blocked(10.5)) breakable('trash', c2.x, c2.z, 0);
       const c3 = at(52, 0.7);
-      if (R() < 0.3) breakable(R() < 0.5 ? 'newsbox' : 'mailbox', c3.x, c3.z, Math.atan2(-s.nx, -s.nz) + Math.PI);
-      if (R() < 0.08) { const c4 = at(30, 0.9); breakable('phone', c4.x, c4.z, Math.atan2(s.nx, s.nz)); }
+      if (R() < 0.3 && !blocked(52)) breakable(R() < 0.5 ? 'newsbox' : 'mailbox', c3.x, c3.z, Math.atan2(-s.nx, -s.nz) + Math.PI);
+      if (R() < 0.08 && !blocked(30)) { const c4 = at(30, 0.9); breakable('phone', c4.x, c4.z, Math.atan2(s.nx, s.nz)); }
     }
   }
 
@@ -591,7 +1097,8 @@
           store.push(first ? 's' : 'n');
         }
         const style = R() < 0.82 ? 'brick' : 'stone';
-        building(bx0, bz0, bx1, bz1, h + (store.length ? 4.2 - 3.5 : 0), style, R.pick(style === 'brick' ? PAL.brick : PAL.stone), { store, district: 'res' });
+        const enter = (store.length > 0 && R() < 0.6) || (!store.length && R() < 0.3);
+        building(bx0, bz0, bx1, bz1, h + (store.length ? 4.2 - 3.5 : 0), style, R.pick(style === 'brick' ? PAL.brick : PAL.stone), { store, district: 'res', room: enter, front: half === 'w' ? 'w' : 'e' });
         const rx = (bx0 + bx1) / 2, rz = (bz0 + bz1) / 2;
         const top = h + (store.length ? 0.7 : 0);
         if (R() < 0.3) waterTower(rx + R.range(-2, 2), rz, top);
@@ -630,6 +1137,7 @@
       P.sCyl.add(ax0 + 0.35, YB + 4.5, z, 0.28, 9, 0.28, hex(0x6b5a45));
       P.sBox.add(ax0 + 0.35, YB + 8.3, z, 1.6, 0.12, 0.12, hex(0x6b5a45));
       addCollider(ax0 + 0.2, z - 0.15, ax0 + 0.5, z + 0.15, 9, 'pole');
+      if (z + 17 < b.iz1) for (const dx of [-0.65, 0.65]) P.sBox.add(ax0 + 0.35 + dx, YB + 8.15, z + 8.5, 0.04, 0.04, 17, hex(0x1b1b1b));
     }
     breakable('trash', ax1 - 0.6, b.iz0 + 26, 0);
   }
@@ -651,8 +1159,9 @@
         if (last && cornerB) store.push(cornerB);
         const style = R.pick(['brick', 'brick', 'stone', 'office']);
         const tint = R.pick(style === 'brick' ? PAL.brick : style === 'stone' ? PAL.stone : PAL.office);
-        if (alongX) building(x0 + a0, z0, x0 + a1, z1, h, style, tint, { store, district: 'shops' });
-        else building(x0, z0 + a0, x1, z0 + a1, h, style, tint, { store, district: 'shops' });
+        const enter = R() < 0.55;
+        if (alongX) building(x0 + a0, z0, x0 + a1, z1, h, style, tint, { store, district: 'shops', room: enter });
+        else building(x0, z0 + a0, x1, z0 + a1, h, style, tint, { store, district: 'shops', room: enter });
         if (R() < 0.4) acUnit(alongX ? x0 + (a0 + a1) / 2 : (x0 + x1) / 2, alongX ? (z0 + z1) / 2 : z0 + (a0 + a1) / 2, h);
         t += w; first = false;
       }
@@ -677,7 +1186,7 @@
     dumpster(lx1 - 1.5, midZ - 6, true);
   }
 
-  function genDowntown(b) {
+  function genDowntown(b, mid) {
     const lots = [];
     const r = R();
     const X0 = b.ix0, X1 = b.ix1, Z0 = b.iz0, Z1 = b.iz1, mx = (X0 + X1) / 2, mz = (Z0 + Z1) / 2;
@@ -686,7 +1195,7 @@
       if (R() < 0.5) { lots.push([X0, Z0, mx - 0.5, Z1], [mx + 0.5, Z0, X1, Z1]); }
       else { lots.push([X0, Z0, X1, mz - 0.5], [X0, mz + 0.5, X1, Z1]); }
     } else lots.push([X0, Z0, mx - 0.5, mz - 0.5], [mx + 0.5, Z0, X1, mz - 0.5], [X0, mz + 0.5, mx - 0.5, Z1], [mx + 0.5, mz + 0.5, X1, Z1]);
-    const centre = 1 - Math.min(1, Math.hypot((X0 + X1) / 2, (Z0 + Z1) / 2) / 260);
+    const centre = 1 - Math.min(1, Math.hypot((X0 + X1) / 2, (Z0 + Z1) / 2) / 220);
     let plazaDone = false;
     for (const L of lots) {
       const [x0, z0, x1, z1] = L;
@@ -695,14 +1204,14 @@
       if (Math.abs(x1 - X1) < 0.1) sides.push('e');
       if (Math.abs(z0 - Z0) < 0.1) sides.push('s');
       if (Math.abs(z1 - Z1) < 0.1) sides.push('n');
-      if (lots.length > 1 && !plazaDone && R() < 0.3) { plaza(x0, z0, x1, z1); plazaDone = true; continue; }
+      if (lots.length > 1 && !plazaDone && R() < (mid ? 0.22 : 0.3)) { plaza(x0, z0, x1, z1); plazaDone = true; continue; }
       const m = R.range(0.5, 2.5);
-      const style = R.pick(['glass', 'glass', 'stone', 'office', 'stone']);
-      const tint = R.pick(style === 'glass' ? PAL.glass : style === 'stone' ? PAL.stone : PAL.office);
-      const floors = Math.round(R.range(10, 22 + 26 * centre) * (lots.length === 4 ? 0.85 : 1));
+      const style = mid ? R.pick(['glass', 'stone', 'office', 'office', 'brick']) : R.pick(['glass', 'glass', 'stone', 'office', 'stone']);
+      const tint = R.pick(PAL[style]);
+      const floors = mid ? R.int(5, 16) : Math.round(R.range(10, 22 + 26 * centre) * (lots.length === 4 ? 0.85 : 1));
       const H = YB + 4.2 + floors * 3.5;
       const store = sides.filter(() => R() < 0.75);
-      const opt = { store, downtown: true, district: 'downtown' };
+      const opt = { store, downtown: true, district: 'downtown', room: store.length > 0 && R() < 0.6 };
       const bx0 = x0 + m, bz0 = z0 + m, bx1 = x1 - m, bz1 = z1 - m;
       if (H > 60 && R() < 0.65) {
         const t1 = YB + 4.2 + Math.round(floors * 0.55) * 3.5, t2 = YB + 4.2 + Math.round(floors * 0.82) * 3.5;
@@ -710,11 +1219,7 @@
         opt.tiers = [{ inset: 0, top: t1 }, { inset: w * 0.12, top: t2 }, { inset: w * 0.24, top: H }];
       }
       building(bx0, bz0, bx1, bz1, H, style, tint, opt);
-      const cx = (bx0 + bx1) / 2, cz = (bz0 + bz1) / 2;
-      if (H > 90) {
-        P.sCyl.add(cx, H + 9, cz, 0.4, 18, 0.4, hex(0xbdc3c7));
-        P.sBlink.add(cx, H + 18.3, cz, 0.7, 0.7, 0.7);
-      } else acUnit(cx, cz, opt.tiers ? H : H);
+      crown(bx0, bz0, bx1, bz1, H, style, tint, opt.tiers ? opt.tiers[opt.tiers.length - 1].inset : 0);
       if (R() < 0.15) City.breakins.push(Object.assign(backDoor(bx0, bz0, bx1, bz1, sides), { kind: 'penthouse' }));
     }
   }
@@ -759,6 +1264,7 @@
       store: ['s', 'w'], downtown: true, district: 'downtown', roof: hex(0x222222),
       tiers: [{ inset: 0, top: 95 }, { inset: 7, top: 160 }, { inset: 12, top: 205 }, { inset: 15, top: 232 }],
     });
+    P.sCrown2.add(cx, 232.5, cz, 12, 0.5, 12);
     for (const dx of [-3.5, 3.5]) {
       P.sCyl.add(cx + dx, 232 + 22, cz, 0.9, 44, 0.9, hex(0xdddddd));
       P.sBlink.add(cx + dx, 276.5, cz, 1.4, 1.4, 1.4);
@@ -778,7 +1284,7 @@
     for (let k = 0; k < 120 && n < 22; k++) {
       const x = R.range(b.ix0 + 2, b.ix1 - 2), z = R.range(b.iz0 + 2, b.iz1 - 2);
       if (!clear(x, z)) continue;
-      tree(x, z); n++;
+      tree(x, z, null, R() < 0.3 ? 'pine' : null); n++;
     }
     // bushes = hiding cover
     for (let k = 0; k < 6; k++) {
@@ -890,34 +1396,27 @@
 
   // ------------------------------------------------------------------ outer ring + skyline
   function outerRing() {
+    const O = C.OUT, E = C.EDGE;
     const band = (axis, sign) => {
-      let t = -330;
-      while (t < 330) {
+      let t = -O - 24;
+      while (t < O + 24) {
         const w = R.range(14, 30);
-        const h = YB + R.range(3, 11) * 3.5;
+        const h = YB + R.range(3, 12) * 3.5;
         const style = R.pick(['brick', 'brick', 'office', 'stone']);
         const tint = R.pick(style === 'brick' ? PAL.brick : style === 'office' ? PAL.office : PAL.stone);
         const d = R.range(18, 30);
-        if (axis === 'x') { // west band: x in [-306-d, -306], along z
-          building(-306 - d, t, -306, Math.min(t + w, 345), h, style, tint, {});
+        if (axis === 'x') { // west band along z
+          building(-O - d, t, -O, Math.min(t + w, O + 40), h, style, tint, {});
+          if (h > 30) crown(-O - d, t, -O, Math.min(t + w, O + 40), h, style, tint);
         } else {
-          const z0 = sign > 0 ? 306 : -306 - d, z1 = sign > 0 ? 306 + d : -306;
-          const x1 = Math.min(t + w, 303);
+          const z0 = sign > 0 ? O : -O - d, z1 = sign > 0 ? O + d : -O;
+          const x1 = Math.min(t + w, E);
           if (x1 - t > 2) building(t, z0, x1, z1, h, style, tint, {});
         }
         t += w;
       }
     };
     band('x', -1); band('z', 1); band('z', -1);
-    // distant skyline silhouettes (no collision)
-    const far = chunkAt(-340, 0);
-    for (let k = 0; k < 40; k++) {
-      const a = R.range(Math.PI * 0.55, Math.PI * 1.45);
-      const d = R.range(430, 650);
-      const x = Math.cos(a) * d, z = Math.sin(a) * d * 1.2;
-      const s = R.range(16, 40), h = R.range(20, 110);
-      far.office.box(x - s / 2, 0, z - s / 2, x + s / 2, h, z + s / 2, CB.shade(R.pick(PAL.office), 0.7), { bottom: true });
-    }
   }
 
   // ------------------------------------------------------------------ L train
@@ -1020,6 +1519,7 @@
           for (let z = a; z < b - 6; z += 6.6) {
             if (R() < 0.35) continue;
             const px = x + side * C.PARK, yaw = side > 0 ? 0 : Math.PI;
+            if (City.inRiver(px, z + 3) || City.inRiver(px, z - 1) || City.inRiver(px, z + 7)) continue;
             City.parking.push({ x: px, z: z + 3, yaw, curb: true });
             if (R() < 0.5) breakable('meter', x + side * 7.5, z + 3.2, side > 0 ? -Math.PI / 2 : Math.PI / 2);
           }
@@ -1030,43 +1530,118 @@
 
   // ------------------------------------------------------------------ lake front
   function lakefront() {
-    for (let z = -296; z < 296; z += 14) {
-      if (Math.abs(z) < 12) continue;
-      if (R() < 0.75) tree(310 + R.range(-4, 6), z + R.range(-3, 3));
+    const E = C.EDGE, rm = City.rivers[0];
+    const wet = (z) => z > rm.z0 - 3 && z < rm.z1 + 3;
+    for (let z = -C.HALF; z < C.HALF; z += 14) {
+      if (Math.abs(z) < 12 || wet(z) || wet(z + 7)) continue;
+      if (R() < 0.75) tree(E + 7 + R.range(-4, 6), z + R.range(-3, 3), null, R() < 0.25 ? 'pine' : null);
       if ((z / 14 | 0) % 2 === 0) {
-        P.sCyl.add(318.6, YB + 2, z + 7, 0.12, 4, 0.12, hex(0x2d3436));
-        P.sLamp.add(318.6, YB + 4.1, z + 7, 0.5, 0.4, 0.5);
-        P.sLampPool.add(319.5, YB + 0.03, z + 7, 9, 1, 9);
-        addCollider(318.5, z + 6.9, 318.7, z + 7.1, 4, 'pole');
+        P.sCyl.add(E + 15.6, YB + 2, z + 7, 0.12, 4, 0.12, hex(0x2d3436));
+        P.sLamp.add(E + 15.6, YB + 4.1, z + 7, 0.5, 0.4, 0.5);
+        P.sLampPool.add(E + 16.5, YB + 0.03, z + 7, 9, 1, 9);
+        addCollider(E + 15.5, z + 6.9, E + 15.7, z + 7.1, 4, 'pole');
       }
-      if (R() < 0.35) bench(326.5, z + 3, Math.PI / 2);
+      if (R() < 0.35) bench(E + 23.5, z + 3, Math.PI / 2);
     }
-    hotdogStand(318, -40);
-    hotdogStand(318, 120);
-    addRamp(323, -150, 0, 1, 12, 4.5, 2.6);
-    addRamp(323, 160, 0, -1, 12, 4.5, 2.6);
-    // lifeguard-ish stand + bushes for cover
-    for (let k = 0; k < 6; k++) {
-      const z = R.range(-280, 280);
-      if (Math.abs(z) < 20) continue;
-      P.sSph.add(306.5, YB + 0.7, z, 3.6, 1.6, 2.6, hex(0x3f7d34));
-      City.covers.push({ x: 306.5, z, r: 1.6 });
+    hotdogStand(E + 15, -40);
+    hotdogStand(E + 15, 120);
+    hotdogStand(E + 15, -300);
+    addRamp(E + 20, -150, 0, 1, 12, 4.5, 2.6);
+    addRamp(E + 20, 140, 0, -1, 12, 4.5, 2.6);
+    addRamp(E + 20, -380, 0, 1, 12, 4.5, 2.6);
+    // bushes for cover
+    for (let k = 0; k < 9; k++) {
+      const z = R.range(-C.HALF + 20, C.HALF - 20);
+      if (Math.abs(z) < 20 || wet(z)) continue;
+      P.sSph.add(E + 3.5, YB + 0.7, z, 3.6, 1.6, 2.6, hex(0x3f7d34));
+      City.covers.push({ x: E + 3.5, z, r: 1.6 });
     }
     // ferris wheel base on the pier platform
-    City.ferris = { x: 417, y: 24, z: 18, r: 20 };
+    const fx = (C.FERRIS.x0 + C.FERRIS.x1) / 2;
+    City.ferris = { x: fx, y: 24, z: 18, r: 20 };
     for (const dx of [-6, 6]) {
-      P.sBox.add(417 + dx, YB + 12, 14.5, 0.8, 24, 0.8, hex(0xecf0f1), 0, 0, dx > 0 ? 0.24 : -0.24);
-      P.sBox.add(417 + dx, YB + 12, 21.5, 0.8, 24, 0.8, hex(0xecf0f1), 0, 0, dx > 0 ? 0.24 : -0.24);
+      P.sBox.add(fx + dx, YB + 12, 14.5, 0.8, 24, 0.8, hex(0xecf0f1), 0, 0, dx > 0 ? 0.24 : -0.24);
+      P.sBox.add(fx + dx, YB + 12, 21.5, 0.8, 24, 0.8, hex(0xecf0f1), 0, 0, dx > 0 ? 0.24 : -0.24);
     }
-    addCollider(406, 13, 428, 23, 3, 'ferris');
-    P.sBox.add(417, YB + 1.5, 18, 22, 3, 10, hex(0x34495e));
+    addCollider(fx - 11, 13, fx + 11, 23, 3, 'ferris');
+    P.sBox.add(fx, YB + 1.5, 18, 22, 3, 10, hex(0x34495e));
+  }
+
+  // A little brick-and-ivy ballpark: diamond, stands behind home plate, light towers and a scoreboard.
+  function genBallpark(b) {
+    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, X0 = b.ix0, X1 = b.ix1, Z0 = b.iz0, Z1 = b.iz1;
+    const ch = chunkAt(cx, cz).plain;
+    for (let x = X0; x < X1 - 0.1; x += 4) G.flat(x, Z0, Math.min(x + 2, X1), Z1, YB + 0.008, hex(0x4a9c44));
+    // infield square (dirt) with grass inside, home plate in the south-west corner
+    const hx = X0 + 11, hz = Z0 + 11, s = 14;
+    G.flat(hx - 1, hz - 1, hx + s + 1, hz + s + 1, YB + 0.012, hex(0xb5835a));
+    G.flat(hx + 1.5, hz + 1.5, hx + s - 1.5, hz + s - 1.5, YB + 0.014, hex(0x3f8f3a));
+    for (const [bx, bz] of [[hx, hz], [hx + s, hz], [hx + s, hz + s], [hx, hz + s]]) P.sBox.add(bx, YB + 0.06, bz, 0.5, 0.1, 0.5, hex(0xffffff));
+    P.sCyl.add(hx + s / 2, YB + 0.12, hz + s / 2, 2.6, 0.25, 2.6, hex(0xb5835a));
+    // stepped stands along the south and west edges (blue seats)
+    const blue = hex(0x0e3386), conc = hex(0x9e9a90);
+    for (let k = 0; k < 6; k++) {
+      const top = YB + (k + 1) * 0.9, c = k % 2 ? blue : CB.shade(blue, 1.25);
+      ch.box(X0 + k * 1.3, YB, Z0 + k * 1.3, X1 - 8, top, Z0 + (k + 1) * 1.3, c, { bottom: true });
+      ch.box(X0 + k * 1.3, YB, Z0 + (k + 1) * 1.3, X0 + (k + 1) * 1.3, top, Z1 - 8, c, { bottom: true });
+    }
+    ch.box(X0 - 0.3, YB, Z0 - 0.3, X1 - 8, YB + 7, Z0, conc, { bottom: true });
+    ch.box(X0 - 0.3, YB, Z0, X0, YB + 7, Z1 - 8, conc, { bottom: true });
+    addCollider(X0, Z0, X1 - 8, Z0 + 7.8, YB + 6, 'stands');
+    addCollider(X0, Z0, X0 + 7.8, Z1 - 8, YB + 6, 'stands');
+    // ivy-covered outfield wall
+    ch.box(X0 + 8, YB, Z1 - 0.6, X1, YB + 3.2, Z1, hex(0x2f6b2a), { bottom: true });
+    ch.box(X1 - 0.6, YB, Z0 + 8, X1, YB + 3.2, Z1, hex(0x2f6b2a), { bottom: true });
+    addCollider(X0 + 8, Z1 - 0.6, X1, Z1, YB + 3.2, 'wall');
+    addCollider(X1 - 0.6, Z0 + 8, X1, Z1, YB + 3.2, 'wall');
+    // scoreboard + light towers
+    ch.box(X1 - 10, YB + 3.2, Z1 - 1.4, X1 - 1, YB + 9, Z1 - 0.6, hex(0x1e5a2d), { bottom: true });
+    P.sCrown2.add(X1 - 5.5, YB + 8.4, Z1 - 1.45, 7.5, 0.4, 0.1);
+    P.sCrown.add(X1 - 5.5, YB + 6, Z1 - 1.45, 5.5, 1.8, 0.1);
+    for (const [lx, lz] of [[X0 + 1, Z1 - 5], [X1 - 5, Z0 + 1], [X1 - 2, Z1 - 14], [X0 + 22, Z0 + 1]]) {
+      P.sCyl.add(lx, YB + 9, lz, 0.4, 18, 0.4, hex(0x7f8c8d));
+      P.sBox.add(lx, YB + 18.5, lz, 3, 1.6, 0.4, hex(0x555555));
+      P.sLamp.add(lx, YB + 18.5, lz, 2.6, 1.2, 0.5);
+      addCollider(lx - 0.25, lz - 0.25, lx + 0.25, lz + 0.25, 18, 'pole');
+    }
+    hotdogStand(X1 - 16, Z0 + 24);
+    City.landmarks = City.landmarks || [];
+    City.landmarks.push({ name: 'Ballpark', x: cx, z: cz });
+  }
+
+  // A tapered black skyscraper with X-bracing (a nod to Chicago's "Big John").
+  function bigJohn(b) {
+    G.flat(b.ix0, b.iz0, b.ix1, b.iz1, YB + 0.006, hex(0xa9a49a));
+    const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, h = 18, tiers = [];
+    const n = 10, top = 205;
+    for (let k = 0; k < n; k++) tiers.push({ inset: k * 1.15, top: YB + 4.2 + (k + 1) * (top / n) });
+    const dark = hex(0x2a2c31);
+    building(cx - h, cz - h, cx + h, cz + h, 0, 'glass', dark, { store: ['s', 'w', 'n', 'e'], downtown: true, district: 'downtown', roof: hex(0x222222), tiers });
+    const steel = hex(0x15171a);
+    for (let k = 0; k < n; k += 2) {
+      const y0 = k === 0 ? YB + 4.2 : tiers[k - 1].top, y1 = tiers[k + 1].top, ins = tiers[k].inset + 0.6;
+      const w = 2 * h - 2 * ins, hb = y1 - y0, L = Math.hypot(w, hb), ang = Math.atan2(hb, w), ym = (y0 + y1) / 2;
+      for (const sg of [-1, 1]) {
+        P.sBox.add(cx, ym, cz - h + ins - 0.2, L, 0.7, 0.3, steel, 0, 0, sg * ang);
+        P.sBox.add(cx, ym, cz + h - ins + 0.2, L, 0.7, 0.3, steel, 0, 0, sg * ang);
+        P.sBox.add(cx - h + ins - 0.2, ym, cz, 0.3, 0.7, L, steel, 0, sg * ang, 0);
+        P.sBox.add(cx + h - ins + 0.2, ym, cz, 0.3, 0.7, L, steel, 0, sg * ang, 0);
+      }
+    }
+    const T = tiers[n - 1].top;
+    for (const dx of [-4, 4]) {
+      P.sCyl.add(cx + dx, T + 25, cz, 1.0, 50, 1.0, hex(0xeeeeee));
+      P.sBlink.add(cx + dx, T + 50.5, cz, 1.4, 1.4, 1.4);
+    }
+    P.sCrown.add(cx, T + 0.4, cz, 2 * h - 2 * tiers[n - 1].inset, 0.5, 2 * h - 2 * tiers[n - 1].inset);
   }
 
   // ------------------------------------------------------------------ build
   City.build = function (scene, pools) {
     P = pools;
     R = CB.rng(1871); // year of the Great Chicago Fire
-    G = new CB.Geo();
+    G = new CB.Geo({ world: 3 });
+    City.aoGeo = new CB.Geo();
     // blocks
     for (let bi = 0; bi < C.N; bi++) {
       for (let bj = 0; bj < C.N; bj++) {
@@ -1074,22 +1649,28 @@
         const b = { bi, bj, x0, z0, x1: x0 + C.BLOCK, z1: z0 + C.BLOCK, type: blockType(bi, bj) };
         b.ix0 = x0 + C.SIDE; b.iz0 = z0 + C.SIDE; b.ix1 = b.x1 - C.SIDE; b.iz1 = b.z1 - C.SIDE;
         b.cx = (x0 + b.x1) / 2; b.cz = (z0 + b.z1) / 2;
+        b.noPeds = b.type === 'river';
         City.blocks.push(b);
       }
     }
     groundBase();
     roadMarkings();
+    riverBridges();
     for (const b of City.blocks) {
-      blockBase(b);
+      if (b.type !== 'river') blockBase(b);
       switch (b.type) {
         case 'apartments': genApartments(b); break;
         case 'shops': genShops(b); break;
-        case 'downtown': genDowntown(b); break;
+        case 'downtown': genDowntown(b, false); break;
+        case 'midtown': genDowntown(b, true); break;
         case 'skydeck': skydeck(b); break;
+        case 'bigjohn': bigJohn(b); break;
+        case 'river': genRiverBlock(b); break;
         case 'park': genPark(b, 'park'); break;
         case 'bean': genPark(b, 'bean'); break;
         case 'fountain': genPark(b, 'fountain'); break;
-        case 'parking': genParking(b, b.bi === 1 ? 1 : b.bi === 6 ? -1 : 0); break;
+        case 'parking': genParking(b, b.bi === 1 ? 1 : b.bi === 14 ? -1 : 0); break;
+        case 'ballpark': genBallpark(b); break;
         case 'industrial': genIndustrial(b); break;
       }
       streetFurniture(b);
@@ -1100,20 +1681,27 @@
     trafficLights();
     curbParking();
     // speed cameras + race starts
-    City.speedCams.push({ x: 303.8, z: -60, roadX: 296 }, { x: -303.8, z: 90, roadX: -296 }, { x: 40, z: -303.8, roadZ: -296 });
+    const E = C.EDGE, H = C.HALF;
+    City.speedCams.push({ x: E + 0.8, z: -60, roadX: H }, { x: -E - 0.8, z: 90, roadX: -H }, { x: 40, z: -E - 0.8, roadZ: -H },
+      { x: -120, z: E + 0.8, roadZ: H }, { x: E + 0.8, z: 320, roadX: H });
     for (const s of City.speedCams) {
       P.sCyl.add(s.x, YB + 2.5, s.z, 0.16, 5, 0.16, hex(0x7f8c8d));
       P.sBox.add(s.x, YB + 5, s.z, 0.7, 0.5, 0.7, hex(0xf1c40f));
       addCollider(s.x - 0.15, s.z - 0.15, s.x + 0.15, s.z + 0.15, 5, 'pole');
     }
-    City.raceStarts.push({ x: 298.5, z: -230, node: [8, 1], name: 'Lake Shore Sprint' },
-      { x: -293.5, z: 210, node: [0, 7], name: 'West Side Dash' },
-      { x: 2.5, z: -290, node: [4, 0], name: 'South Loop Run' });
+    // race starts sit on an outer road next to a grid node; the flag stands on the outer sidewalk
+    City.raceStarts.push(
+      { x: H + 2.5, z: CB.road(3) - 25, node: [C.N, 3], name: 'Lake Shore Sprint', fx: E + 1.5, fz: CB.road(3) - 25, along: 'z' },
+      { x: -H - 2.5, z: CB.road(C.N - 3) + 25, node: [0, C.N - 3], name: 'West Side Dash', fx: -E - 1.5, fz: CB.road(C.N - 3) + 25, along: 'z' },
+      { x: CB.road(C.N / 2) + 25, z: -H - 2.5, node: [C.N / 2, 0], name: 'South Loop Run', fx: CB.road(C.N / 2) + 25, fz: -E - 1.5, along: 'x' },
+      { x: CB.road(C.N / 2 + 3) - 25, z: H + 2.5, node: [C.N / 2 + 3, C.N], name: 'River North Run', fx: CB.road(C.N / 2 + 3) - 25, fz: E + 1.5, along: 'x' },
+      { x: H + 2.5, z: CB.road(C.N - 2) - 25, node: [C.N, C.N - 2], name: 'Gold Coast Gallop', fx: E + 1.5, fz: CB.road(C.N - 2) - 25, along: 'z' });
     for (const s of City.raceStarts) {
-      const sx = s.x > 0 ? 304.5 : s.x < -100 ? -304.5 : s.x + 5.5;
-      const sz = Math.abs(s.x) > 100 ? s.z : -304.5;
-      P.sCyl.add(sx, YB + 2, sz, 0.1, 4, 0.1, hex(0xdddddd));
-      for (let k = 0; k < 4; k++) for (let m = 0; m < 2; m++) P.sBox.add(sx + (Math.abs(s.x) > 100 ? 0 : 0.3 + k * 0.3), YB + 3.7 - m * 0.3, sz + (Math.abs(s.x) > 100 ? 0.3 + k * 0.3 : 0), Math.abs(s.x) > 100 ? 0.03 : 0.3, 0.3, Math.abs(s.x) > 100 ? 0.3 : 0.03, (k + m) % 2 ? hex(0x111111) : hex(0xffffff));
+      P.sCyl.add(s.fx, YB + 2, s.fz, 0.1, 4, 0.1, hex(0xdddddd));
+      const az = s.along === 'z';
+      for (let k = 0; k < 4; k++) for (let m = 0; m < 2; m++) {
+        P.sBox.add(s.fx + (az ? 0 : 0.3 + k * 0.3), YB + 3.7 - m * 0.3, s.fz + (az ? 0.3 + k * 0.3 : 0), az ? 0.03 : 0.3, 0.3, az ? 0.3 : 0.03, (k + m) % 2 ? hex(0x111111) : hex(0xffffff));
+      }
     }
 
     // materials
@@ -1122,33 +1710,70 @@
       const m = new B.StandardMaterial('fac_' + kind, scene);
       m.diffuseTexture = f.diff; m.emissiveTexture = f.emis;
       m.emissiveColor = new B.Color3(0, 0, 0);
-      m.specularColor = new B.Color3(0.08, 0.08, 0.08);
-      if (kind === 'glass') { m.specularColor = new B.Color3(0.6, 0.6, 0.6); m.specularPower = 96; }
+      // shiny windows, matte walls; recessed windows via a normal map
+      m.specularTexture = f.spec;
+      m.specularColor = kind === 'glass' ? new B.Color3(0.75, 0.75, 0.75) : new B.Color3(0.55, 0.55, 0.55);
+      m.specularPower = kind === 'glass' ? 96 : 64;
+      m.bumpTexture = f.bump; m.bumpTexture.level = 0.9;
       return m;
     };
     City.mats = {
       office: facMat('office', 11), brick: facMat('brick', 22), stone: facMat('stone', 33), glass: facMat('glass', 44),
     };
+    const detail = CB.CityTex.detail(scene);
     const plainMat = new B.StandardMaterial('plain', scene);
     plainMat.specularColor = new B.Color3(0.06, 0.06, 0.06);
+    plainMat.diffuseTexture = detail;
     City.mats.plain = plainMat;
     const groundMat = new B.StandardMaterial('ground', scene);
-    groundMat.specularColor = new B.Color3(0.1, 0.1, 0.1);
+    groundMat.specularColor = new B.Color3(0.12, 0.12, 0.12);
     groundMat.specularPower = 24;
+    groundMat.diffuseTexture = detail;
     City.mats.ground = groundMat;
+    // contact shadows
+    const aoMat = new B.StandardMaterial('ao', scene);
+    aoMat.disableLighting = true; aoMat.diffuseColor = new B.Color3(0, 0, 0);
+    aoMat.disableDepthWrite = true; aoMat.zOffset = -2; aoMat.backFaceCulling = false;
+    City.aoMesh = City.aoGeo.build('contactShadows', scene, aoMat);
+    City.aoMesh.hasVertexAlpha = true;
+    City.aoGeo = null;
 
     City.ground = G.build('ground', scene, groundMat);
     City.ground.receiveShadows = true;
     for (const ch of City.chunks.values()) {
       for (const k of ['office', 'brick', 'stone', 'glass', 'plain']) {
-        if (!ch[k].count) continue;
+        if (!ch[k] || !ch[k].count) continue;
         const mesh = ch[k].build('chunk_' + ch.key + '_' + k, scene, City.mats[k]);
         mesh.receiveShadows = true;
         City.chunkMeshes.push({ mesh, x: ch.cx, z: ch.cz, kind: k });
         ch[k] = null;
       }
     }
+  };
+
+  // Called after City.furnish(): builds the room meshes and the navigation grid.
+  City.finishInteriors = function (scene) {
+    const m = new B.StandardMaterial('interior', scene);
+    m.specularColor = new B.Color3(0.05, 0.05, 0.05);
+    m.emissiveColor = new B.Color3(0.36, 0.35, 0.33); // rooms are lit from inside (clean flat colours, no street grime)
+    City.mats.interior = m;
+    for (const ch of City.chunks.values()) {
+      if (!ch.interior || !ch.interior.count) continue;
+      const mesh = ch.interior.build('chunk_' + ch.key + '_interior', scene, m);
+      mesh.receiveShadows = true;
+      City.chunkMeshes.push({ mesh, x: ch.cx, z: ch.cz, kind: 'interior' });
+      ch.interior = null;
+    }
     buildNav();
+    // make sure every doorway is passable on the coarse navigation grid
+    for (const r of City.rooms) {
+      const S = r.S, dc = (r.d1 + r.d2) / 2;
+      for (let ins = -1.6; ins <= 2.6; ins += 0.5) {
+        const x = S.ax + S.ux * dc - S.nx * ins, z = S.az + S.uz * dc - S.nz * ins;
+        const c = City.cell(x, z);
+        if (c >= 0) { NAV.walk[c] = 1; NAV.opaque[c] = 0; }
+      }
+    }
   };
 
   // Called after stores are assigned: signs + awnings for every storefront.
