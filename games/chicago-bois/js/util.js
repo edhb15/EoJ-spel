@@ -4,8 +4,8 @@ window.CB = window.CB || {};
 
 (function (CB) {
   // City layout: an N x N grid of blocks. Roads run along every grid line.
-  const N = 12, P = 74, ROAD = 14;
-  const HALF = N * P / 2;          // 444 – outermost road centre line
+  const N = 16, P = 74, ROAD = 14;
+  const HALF = N * P / 2;          // 592 – outermost road centre line
   const EDGE = HALF + 7;           // outer edge of the outermost roads
   const OUT = HALF + 10;           // where the ring of boundary buildings starts
   const SHORE = HALF + 38;         // Lake Michigan starts here (x)

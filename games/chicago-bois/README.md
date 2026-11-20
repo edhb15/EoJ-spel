@@ -1,6 +1,6 @@
 # Chicago Bois
 
-A chaotic, slightly comedic 3D open-world crime sandbox set in a cartoon version of Chicago: a 12×12-block city with the Loop and its elevated train, the Chicago River with steel bridges, tour boats and a riverwalk, the lakefront, Navy-Pier-style Ferris wheel and a skyline of art-deco and glass towers. Rob stores, crack locks, steal cars, race the streets and tag the alleys – and fill all **five wanted stars** before the cops put you in cuffs.
+A chaotic, slightly comedic 3D open-world crime sandbox set in a cartoon version of Chicago: a 16×16-block city with the Loop and its elevated train, a ballpark, the Chicago River with steel bridges, tour boats and a riverwalk, the lakefront, Navy-Pier-style Ferris wheel and a skyline of art-deco and glass towers. Walk into shops and apartments, rob the till, crack locks, steal cars, race the streets and tag the alleys – and fill all **five wanted stars** before the cops put you in cuffs.
 
 **Play:** https://edhb15.github.io/EoJ-spel/games/chicago-bois/index.html
 
@@ -30,9 +30,13 @@ A chaotic, slightly comedic 3D open-world crime sandbox set in a cartoon version
 - **Escaping:** break line of sight, duck into alleys, hide in dumpsters or bushes, or buy a disguise at a thrift store. When the search timer runs out you've escaped.
 - **Busted:** officers next to you fill the arrest meter (shove them or run). If it fills, or your health hits zero, it's game over.
 
+## Walk-in buildings
+
+Every store and many apartments have an open front door you can walk through. Stores are furnished to match – a bank with teller windows and a vault, jewelry display cases, electronics shelves, a pizzeria, a thrift store – and the robbery happens at the counter, right in front of the shopkeeper. Apartments have a living room to search for valuables (+10%; sometimes a stash under the mattress). The camera moves in over your shoulder indoors, and police follow you inside, so a shop with one door can turn into a trap.
+
 ## Activities
 
-Mugging people with a weapon (+10%; robbing a cop +25% and they come after you), gunfire (+5%; knocking people flat +10%, cops +20% – slapstick, they get back up), corner stores, pizzerias and the pawn shop (+25%), electronics and jewelry stores (+40%), the Second City Savings bank vault (+60%), ATMs (+25%), apartment back doors (+25%), warehouses and penthouses (+40%), the armored truck (+60%), parked cars / police cruisers / carjackings, street races (+40%), stunt ramps (+25%), speed cameras, graffiti and smashing street props (+10%).
+Mugging people with a weapon (+10%; robbing a cop +25% and they come after you), burgling walk-in apartments (+10%), gunfire (+5%; knocking people flat +10%, cops +20% – slapstick, they get back up), corner stores, pizzerias and the pawn shop (+25%), electronics and jewelry stores (+40%), the Second City Savings bank vault (+60%), ATMs (+25%), apartment back doors (+25%), warehouses and penthouses (+40%), the armored truck (+60%), parked cars / police cruisers / carjackings, street races (+40%), stunt ramps (+25%), speed cameras, graffiti and smashing street props (+10%).
 
 ## Graphics settings
 
@@ -52,7 +56,7 @@ Plain HTML/CSS/JavaScript with [Babylon.js](https://www.babylonjs.com/) 8.20 (`l
 | `game.js` | Engine setup, day/night cycle, player, camera, driving, collisions, game flow, menus |
 | `js/util.js` | Constants, seeded RNG, settings |
 | `js/pools.js` | Thin-instance pools and rigs (fast rendering of people, cars and props), mesh builder |
-| `js/city.js`, `js/citytex.js` | City generator (blocks, river, bridges, towers), procedural textures, collision, navigation grid, traffic lights |
+| `js/city.js`, `js/citytex.js` | City generator (blocks, river, bridges, towers, ballpark, furnished interiors), procedural textures, collision, navigation grid, traffic lights |
 | `js/characters.js` | People and pedestrian AI |
 | `js/vehicles.js` | Car models, arcade physics, traffic on the street grid |
 | `js/police.js` | Wanted level, police AI (officers, cruisers, chopper), arrests |

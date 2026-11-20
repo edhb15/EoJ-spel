@@ -313,26 +313,27 @@
       const mk = (fn, mat, name) => { const m = fn(); m.name = name; m.material = mat; return m; };
 
       // Dynamic (updated every frame)
-      this.box = new DynPool(mk(box, this.matDyn, 'dBox'), 8000, true);
-      this.shiny = new DynPool(mk(box, this.matShiny, 'dShiny'), 1300, true);
-      this.cyl = new DynPool(mk(() => cyl(12), this.matDyn, 'dCyl'), 4600, true);
+      this.box = new DynPool(mk(box, this.matDyn, 'dBox'), 12000, true);
+      this.shiny = new DynPool(mk(box, this.matShiny, 'dShiny'), 1600, true);
+      this.cyl = new DynPool(mk(() => cyl(8), this.matDyn, 'dCyl'), 7600, true);
       this.sph = new DynPool(mk(sph, this.matDyn, 'dSph'), 300, true);
       this.matGlowW = glow('gW', [1, 0.97, 0.85]);
       this.matGlowR = glow('gR', [1, 0.08, 0.05]);
       this.matGlowB = glow('gB', [0.1, 0.35, 1]);
       this.matGlowY = glow('gY', [1, 0.7, 0.1]);
       this.matGlowG = glow('gG', [0.15, 1, 0.35]);
-      this.gW = new DynPool(mk(box, this.matGlowW, 'dGW'), 700, false);
-      this.gR = new DynPool(mk(box, this.matGlowR, 'dGR'), 1300, false);
+      this.gW = new DynPool(mk(box, this.matGlowW, 'dGW'), 900, false);
+      this.gR = new DynPool(mk(box, this.matGlowR, 'dGR'), 2300, false);
       this.gB = new DynPool(mk(box, this.matGlowB, 'dGB'), 260, false);
-      this.gY = new DynPool(mk(box, this.matGlowY, 'dGY'), 1000, false);
-      this.gG = new DynPool(mk(box, this.matGlowG, 'dGG'), 800, false);
+      this.gY = new DynPool(mk(box, this.matGlowY, 'dGY'), 1700, false);
+      this.gG = new DynPool(mk(box, this.matGlowG, 'dGG'), 1500, false);
       this.dyn = [this.box, this.shiny, this.cyl, this.sph, this.gW, this.gR, this.gB, this.gY, this.gG];
 
       // Static
       this.sBox = new StaticPool(mk(box, this.matStatic, 'sBox'), true);
       this.sCyl = new StaticPool(mk(() => cyl(8), this.matStatic, 'sCyl'), true);
-      this.sSph = new StaticPool(mk(sph, this.matStatic, 'sSph'), true);
+      // low-poly foliage: faceted spheres suit the blocky style and keep the triangle count down
+      this.sSph = new StaticPool(mk(() => B.MeshBuilder.CreateIcoSphere('ico', { radius: 0.5, subdivisions: 1, flat: true }, scene), this.matStatic, 'sSph'), true);
       this.sCone = new StaticPool(mk(cone, this.matStatic, 'sCone'), true);
       this.matLamp = glow('lamp', [1, 0.9, 0.65]);
       this.sLamp = new StaticPool(mk(box, this.matLamp, 'sLamp'), false);
@@ -378,7 +379,7 @@
       this.sLampPool = new StaticPool(plane('sLampPool', this.matLampPool), false);
       this.statics.push(this.sLampPool);
       this.matHeadPool = addMat('headPool', [0.9, 0.85, 0.7]);
-      this.headPool = new DynPool(plane('dHeadPool', this.matHeadPool), 340, false);
+      this.headPool = new DynPool(plane('dHeadPool', this.matHeadPool), 420, false);
       this.matSirenPool = addMat('sirenPool', [1, 1, 1]);
       this.sirenPool = new DynPool(plane('dSirenPool', this.matSirenPool), 40, false);
       this.dyn.push(this.headPool, this.sirenPool);
@@ -395,7 +396,7 @@
       const ringMat = (name, c) => {
         const m = addMat(name, c); m.diffuseTexture = rt; return m;
       };
-      this.ringRed = new DynPool(plane('ringR', ringMat('ringR', [1, 0.2, 0.15])), 200, false);
+      this.ringRed = new DynPool(plane('ringR', ringMat('ringR', [1, 0.2, 0.15])), 1000, false);
       this.ringGreen = new DynPool(plane('ringG', ringMat('ringG', [0.2, 1, 0.4])), 40, false);
       this.ringYellow = new DynPool(plane('ringY', ringMat('ringY', [1, 0.8, 0.1])), 40, false);
       this.dyn.push(this.ringRed, this.ringGreen, this.ringYellow);
