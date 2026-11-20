@@ -211,7 +211,8 @@
     casterT = 0.5;
     const cx = camera.position.x, cz = camera.position.z;
     const vd = game.viewDist || 700;
-    for (const c of CB.City.chunkMeshes) c.mesh.setEnabled(M.dist(c.x, c.z, cx, cz) < vd);
+    // interiors only matter up close (you see them through doors)
+    for (const c of CB.City.chunkMeshes) c.mesh.setEnabled(M.dist(c.x, c.z, cx, cz) < (c.kind === 'interior' ? 210 : vd));
     for (const m of CB.Pools.staticMeshes) m.setEnabled(M.dist(m.cellX, m.cellZ, cx, cz) < vd);
     if (!shadowGen) return;
     const rl = shadowGen.getShadowMap().renderList;
@@ -219,7 +220,7 @@
     for (const m of CB.Pools.casters) rl.push(m);
     for (const m of CB.Pools.staticCasters) if (M.dist(m.cellX, m.cellZ, fx, fz) < (CB.settings.quality === 'high' ? 360 : 300)) rl.push(m);
     const reach = CB.settings.quality === 'high' ? 330 : 240;
-    for (const c of CB.City.chunkMeshes) if (c.kind !== 'ao' && M.dist(c.x, c.z, fx, fz) < reach) rl.push(c.mesh);
+    for (const c of CB.City.chunkMeshes) if (M.dist(c.x, c.z, fx, fz) < (c.kind === 'interior' ? 140 : reach)) rl.push(c.mesh);
     rl.push(CB.Landmarks.bean, CB.Landmarks.wheel);
   }
 
@@ -1399,11 +1400,18 @@
     }
     game.aimK = M.damp(game.aimK || 0, pl.aiming && !car ? 1 : 0, 10, dt);
     const ak = game.aimK;
-    // over the right shoulder while aiming
-    const sx = Math.cos(game.camYaw) * 0.85 * ak, sz = -Math.sin(game.camYaw) * 0.85 * ak;
-    const tx = pl.x + sx, ty = pl.y + (car ? 1.6 : 1.55 + 0.15 * ak), tz = pl.z + sz;
+    // indoors: closer camera that stays under the ceiling and inside the room
+    const room = car ? null : CB.City.roomAt(pl.x, pl.z);
+    game.indoorK = M.damp(game.indoorK || 0, room ? 1 : 0, 6, dt);
+    const ik = game.indoorK;
+    // over the right shoulder while aiming (and indoors, so the player doesn't fill the view)
+    const sk = Math.max(ak, 0.7 * ik);
+    const sx = Math.cos(game.camYaw) * 0.85 * sk, sz = -Math.sin(game.camYaw) * 0.85 * sk;
+    let tx = pl.x + sx, ty = pl.y + (car ? 1.6 : 1.55 + 0.15 * ak + 0.2 * ik * (1 - ak)), tz = pl.z + sz;
+    if (room) { tx = M.clamp(tx, room.x0 + 0.3, room.x1 - 0.3); tz = M.clamp(tz, room.z0 + 0.3, room.z1 - 0.3); }
     let dist = car ? 8.5 + Math.min(4, car.speed * 0.08) + (car.T.van ? 1.5 : 0) : 5.2 - 2.4 * ak;
     if (pl.hidden) dist = 6.5;
+    if (room) dist = Math.min(dist, 3.3);
     const cp = Math.cos(game.camPitch), spch = Math.sin(game.camPitch);
     const dx = -Math.sin(game.camYaw) * cp, dy = spch, dz = -Math.cos(game.camYaw) * cp;
     // pull in when a building is in the way
@@ -1411,10 +1419,30 @@
     for (let t = 0.6; t < dist; t += 0.35) {
       const x = tx + dx * t, y = ty + dy * t, z = tz + dz * t;
       let blocked = false;
-      CB.City.near(x, z, 0.25, (c) => { if (!blocked && c.h > y && c.kind !== 'tree' && c.kind !== 'pole' && x > c.x0 - 0.25 && x < c.x1 + 0.25 && z > c.z0 - 0.25 && z < c.z1 + 0.25) blocked = true; });
+      CB.City.near(x, z, 0.25, (c) => { if (!blocked && c.h > y && c.kind !== 'tree' && c.kind !== 'pole' && c.kind !== 'furniture' && x > c.x0 - 0.25 && x < c.x1 + 0.25 && z > c.z0 - 0.25 && z < c.z1 + 0.25) blocked = true; });
       if (blocked || y < CB.City.groundY(x, z) + 0.3) { d = Math.max(0.8, t - 0.3); break; }
     }
-    const want = new B.Vector3(tx + dx * d, ty + dy * d, tz + dz * d);
+    let lift = 0;
+    if (room) {
+      // where does the view ray leave the room? Through the doorway the camera may stay
+      // outside (kept under the lintel); anywhere else it stops in front of the wall.
+      let tb = d;
+      if (dx > 1e-4) tb = Math.min(tb, (room.x1 - tx) / dx); else if (dx < -1e-4) tb = Math.min(tb, (room.x0 - tx) / dx);
+      if (dz > 1e-4) tb = Math.min(tb, (room.z1 - tz) / dz); else if (dz < -1e-4) tb = Math.min(tb, (room.z0 - tz) / dz);
+      if (tb < d) {
+        const bx = tx + dx * tb, bz = tz + dz * tb, S = room.S;
+        const u = S.ux * (bx - S.ax) + S.uz * (bz - S.az);
+        const dr = room.door;
+        const viaDoor = u > room.d1 + 0.3 && u < room.d2 - 0.3 && bx > dr.x0 - 0.05 && bx < dr.x1 + 0.05 && bz > dr.z0 - 0.05 && bz < dr.z1 + 0.05;
+        if (!viaDoor) d = Math.max(0.5, tb - 0.4);
+      }
+      lift = Math.max(0, 1.7 - d) * 0.6;   // too close: look over the head instead
+    }
+    const want = new B.Vector3(tx + dx * d, ty + dy * d + lift, tz + dz * d);
+    if (room) {
+      const inside = want.x > room.x0 && want.x < room.x1 && want.z > room.z0 && want.z < room.z1;
+      want.y = Math.min(want.y, inside ? room.ceil - 0.3 : room.yb + 2.3);
+    }
     if (d < (game.lastCamD || dist) - 0.05) camPos.copyFrom(want);
     else B.Vector3.LerpToRef(camPos, want, Math.min(1, dt * 12), camPos);
     game.lastCamD = d;

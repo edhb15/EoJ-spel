@@ -61,7 +61,7 @@
     // pier
     c.fillStyle = '#8a6a4a'; rect(C.SHORE, C.PIER.z0, C.PIER.x1, C.PIER.z1); rect(F.x0, F.z0, F.x1, F.z1);
     const typeCol = { park: '#3e7d32', bean: '#8c9a7a', fountain: '#3e7d32', parking: '#3c3f46', industrial: '#6b6457', downtown: '#5b5f68', skydeck: '#5b5f68',
-      midtown: '#585c64', bigjohn: '#5b5f68', apartments: '#4d5148', shops: '#565159', river: '#8f8b84' };
+      midtown: '#585c64', bigjohn: '#5b5f68', ballpark: '#3f8f3a', apartments: '#4d5148', shops: '#565159', river: '#8f8b84' };
     for (const b of CB.City.blocks) {
       c.fillStyle = '#8f8b84'; rect(b.x0, b.z0, b.x1, b.z1);
       if (b.type !== 'river') { c.fillStyle = typeCol[b.type] || '#555'; rect(b.ix0, b.iz0, b.ix1, b.iz1); }
