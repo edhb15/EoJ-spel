@@ -79,6 +79,7 @@
     float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
+    float fbm(vec2 p) { float v = 0.0, a = 0.52; for (int i = 0; i < 5; i++) { v += a * noise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return v; }
     void main() {
       vec3 d = normalize(vPos);
       float h = d.y;
@@ -86,21 +87,31 @@
       if (h < 0.0) col = horizonColor;
       vec3 sd3 = normalize(sunDir);
       float sd = max(dot(d, sd3), 0.0);
-      col += sunColor * (pow(sd, 900.0) * 6.0 + pow(sd, 10.0) * 0.28) * (1.0 - night);
-      // clouds
-      if (h > 0.02) {
-        vec2 uv = d.xz / (h + 0.15) * 1.6 + vec2(time * 0.004, time * 0.002);
-        float n = noise(uv) * 0.55 + noise(uv * 2.1) * 0.3 + noise(uv * 4.3) * 0.15;
-        float c = smoothstep(0.55, 0.85, n) * smoothstep(0.02, 0.25, h);
-        vec3 cc = mix(vec3(1.0), horizonColor * 1.1 + sunColor * 0.2, 0.35) * (1.0 - night * 0.82);
-        col = mix(col, cc, c * 0.75);
-      }
+      float day = 1.0 - night;
+      col += sunColor * (pow(sd, 900.0) * 6.0 + pow(sd, 10.0) * 0.28) * day;
+      // stars and moon (behind the clouds)
       if (night > 0.0 && h > 0.0) {
         vec3 p = floor(d * 280.0);
         float s = hash(p);
         if (s > 0.996) col += vec3(1.0) * night * (s - 0.996) * 220.0 * clamp(h * 4.0, 0.0, 1.0);
         float md = max(dot(d, -sd3), 0.0);
         col += vec3(0.9, 0.92, 1.0) * (pow(md, 2200.0) * 3.0 + pow(md, 40.0) * 0.08) * night;
+      }
+      // clouds: fbm on a flat layer, self-shadowed toward the sun
+      if (h > 0.01) {
+        vec2 uv = d.xz / (h + 0.12) * 1.25 + vec2(time * 0.006, time * 0.0025);
+        float n = fbm(uv);
+        float c = smoothstep(0.5, 0.78, n) * smoothstep(0.01, 0.22, h);
+        if (c > 0.001) {
+          float n2 = fbm(uv + sd3.xz * 0.22);
+          float lit = clamp(0.62 + (n - n2) * 3.2, 0.18, 1.0);
+          float dusk = clamp(1.0 - abs(sd3.y - 0.05) / 0.3, 0.0, 1.0);
+          vec3 litCol = mix(vec3(1.0, 0.99, 0.97), sunColor * vec3(1.05, 0.8, 0.72), 0.25 + dusk * 0.6);
+          vec3 shadeCol = mix(horizonColor, topColor, 0.45) * mix(0.82, 0.6, dusk);
+          vec3 cc = mix(shadeCol, litCol, lit) * day + vec3(0.07, 0.08, 0.11) * night * (0.6 + 0.4 * lit);
+          cc += sunColor * pow(sd, 6.0) * (1.0 - smoothstep(0.55, 0.95, n)) * 0.55 * day; // silver lining
+          col = mix(col, cc, c * 0.9);
+        }
       }
       gl_FragColor = vec4(col, 1.0);
     }`;
@@ -179,7 +190,7 @@
       };
       for (const m of [skyMesh, CB.Landmarks.water, CB.City.aoMesh, CB.City.ground].concat(CB.Landmarks.riverMeshes)) if (m) glow.addExcludedMesh(m);
       for (const p of [CB.Pools.headPool, CB.Pools.sirenPool, CB.Pools.ringRed, CB.Pools.ringGreen, CB.Pools.ringYellow]) glow.addExcludedMesh(p.mesh);
-      for (const m of CB.Pools.sLampPool.meshes) glow.addExcludedMesh(m);
+      for (const m of CB.Pools.sLampPool.meshes.concat(CB.Pools.sNeonPool.meshes)) glow.addExcludedMesh(m);
       // small non-glowing props don't need to block glow
       for (const p of [CB.Pools.box, CB.Pools.cyl, CB.Pools.sph]) glow.addExcludedMesh(p.mesh);
       for (const p of [CB.Pools.sCyl, CB.Pools.sSph, CB.Pools.sCone]) for (const m of p.meshes) glow.addExcludedMesh(m);
@@ -197,8 +208,16 @@
         pipeline.imageProcessingEnabled = true;
       } catch (e) { pipeline = null; }
     }
+    CB.Landmarks.setMirror(q === 'high');
     const far = q === 'low' ? 420 : q === 'high' ? 820 : 600;
-    scene.fogEnd = far; scene.fogStart = far * 0.22;
+    game.fogBase = { start: far * 0.3, end: far * 1.08, view: far + 150 };
+    scene.fogEnd = far * 1.08; scene.fogStart = far * 0.3;
+    // filmic (ACES) tone mapping on High, where image processing runs as a post-process for everything
+    const ip = scene.imageProcessingConfiguration;
+    ip.toneMappingEnabled = !!pipeline;
+    ip.toneMappingType = B.ImageProcessingConfiguration.TONEMAPPING_ACES;
+    ip.contrast = pipeline ? 1.0 : 1.12;
+    game.baseExposure = pipeline ? 1.42 : 1.05;
     game.viewDist = far + 150;
     camera.maxZ = 3000;
   }
@@ -265,16 +284,24 @@
     skyMat.setColor3('topColor', new B.Color3(top[0], top[1], top[2]));
     skyMat.setColor3('horizonColor', new B.Color3(hor[0], hor[1], hor[2]));
     skyMat.setVector3('sunDir', new B.Vector3(sun3[0], sun3[1], sun3[2]));
-    const sc = mix3([1, 0.5, 0.2], [1, 0.95, 0.85], M.smoothstep(0, 0.4, sy));
+    const sc = mix3([1, 0.52, 0.24], [1, 0.95, 0.86], M.smoothstep(0.02, 0.62, sy));
     skyMat.setColor3('sunColor', new B.Color3(sc[0], sc[1], sc[2]));
     skyMat.setFloat('night', night);
     skyMat.setFloat('time', game.time);
+    game.sky = { top, hor, sun: sun3, sunCol: sc };
+    // less haze (and a longer draw distance) the higher the camera is: street level keeps its
+    // atmosphere, the menu fly-over and aerial views see across the city
+    if (game.fogBase && camera) {
+      const k = 1 + M.clamp((camera.position.y - 14) / 90, 0, 1.6);
+      scene.fogStart = game.fogBase.start * k; scene.fogEnd = game.fogBase.end * k;
+      game.viewDist = game.fogBase.view * k;
+    }
     scene.fogColor = new B.Color3(hor[0], hor[1], hor[2]);
     scene.clearColor.set(hor[0], hor[1], hor[2], 1);
     // sun or moon light
     if (sy > -0.06) {
       sun.direction.set(-sun3[0], -Math.max(0.12, sun3[1]), -sun3[2]);
-      sun.intensity = 1.45 * M.smoothstep(-0.06, 0.25, sy);
+      sun.intensity = 1.45 * M.smoothstep(-0.07, 0.16, sy);
       sun.diffuse.set(sc[0], sc[1] * 0.97, sc[2] * 0.92);
     } else {
       sun.direction.set(sun3[0], -Math.max(0.3, -sun3[1]), sun3[2]);
@@ -282,9 +309,10 @@
       sun.diffuse.set(0.55, 0.65, 1);
     }
     sun.specular.copyFrom(sun.diffuse);
-    hemi.intensity = 0.26 + 0.34 * day;
-    hemi.diffuse.set(M.lerp(0.42, 1, day), M.lerp(0.48, 0.98, day), M.lerp(0.75, 0.95, day));
-    hemi.groundColor.set(M.lerp(0.12, 0.38, day), M.lerp(0.12, 0.36, day), M.lerp(0.2, 0.34, day));
+    // sky light: blue-grey moonlit city at night (with warm street-light bounce from below), warm at dusk
+    hemi.intensity = 0.34 + 0.42 * day;
+    hemi.diffuse.set(M.lerp(0.42, 1, day) + dusk * 0.12, M.lerp(0.48, 0.98, day) - dusk * 0.04, M.lerp(0.78, 0.95, day) - dusk * 0.14);
+    hemi.groundColor.set(M.lerp(0.26, 0.38, day), M.lerp(0.19, 0.36, day), M.lerp(0.16, 0.34, day));
     // shadow follows the focus point
     sun.position.set(fx - sun.direction.x * 220, -sun.direction.y * 220, fz - sun.direction.z * 220);
     if (shadowGen) shadowGen.setDarkness(M.lerp(0.12, 0.6, night));
@@ -299,11 +327,20 @@
     const cn = 0.25 + 0.4 * night;
     P.matCrown.emissiveColor.set(0.55 * cn, 0.8 * cn, 1 * cn);
     P.matCrown2.emissiveColor.set(1 * cn, 0.72 * cn, 0.35 * cn);
-    P.matLampPool.emissiveColor.set(0.95 * night * 0.55, 0.75 * night * 0.55, 0.45 * night * 0.55);
+    P.matLampPool.emissiveColor.set(0.95 * night * 0.6, 0.75 * night * 0.6, 0.45 * night * 0.6);
+    const nk = 0.08 + night * 0.42;
+    P.matNeonPool.emissiveColor.set(nk, nk, nk);
     P.matHeadPool.emissiveColor.set(0.9 * night * 0.5, 0.85 * night * 0.5, 0.7 * night * 0.5);
     P.matSirenPool.alpha = 0.99;
     if (glow) glow.intensity = 0.55 + night * 0.55;
-    scene.imageProcessingConfiguration.exposure = 1.05 + night * 0.2;
+    // colour grade: warm highlights at golden hour, cool shadows at night
+    const ipc = scene.imageProcessingConfiguration, cc = ipc.colorCurves;
+    ipc.exposure = (game.baseExposure || 1.05) * (1 + night * 0.22);
+    if (cc) {
+      cc.highlightsHue = 38; cc.highlightsDensity = Math.round(dusk * 45 + day * 6);
+      cc.shadowsHue = 225; cc.shadowsDensity = Math.round(night * 40 + 8);
+      cc.globalSaturation = Math.round(26 + dusk * 14 - night * 8);
+    }
   }
 
   // =================================================================== player

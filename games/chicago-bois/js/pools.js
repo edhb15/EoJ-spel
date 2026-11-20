@@ -110,6 +110,8 @@
     finish() {
       for (const [key, c] of this.cells) {
         const m = this.mesh.clone(this.mesh.name + '_' + key);
+        // clones share geometry, and thin-instance buffers live on the geometry: give each cell its own
+        m.makeGeometryUnique();
         m.thinInstanceSetBuffer('matrix', new Float32Array(c.m), 16, true);
         if (this.withColor) m.thinInstanceSetBuffer('color', new Float32Array(c.c), 4, true);
         m.thinInstanceRefreshBoundingInfo(false);
@@ -378,6 +380,10 @@
       this.matLampPool = addMat('lampPool', [0.95, 0.75, 0.45]);
       this.sLampPool = new StaticPool(plane('sLampPool', this.matLampPool), false);
       this.statics.push(this.sLampPool);
+      // coloured neon light spilling onto the sidewalk under shop signs (colour per instance)
+      this.matNeonPool = addMat('neonPool', [0, 0, 0]);
+      this.sNeonPool = new StaticPool(plane('sNeonPool', this.matNeonPool), true);
+      this.statics.push(this.sNeonPool);
       this.matHeadPool = addMat('headPool', [0.9, 0.85, 0.7]);
       this.headPool = new DynPool(plane('dHeadPool', this.matHeadPool), 420, false);
       this.matSirenPool = addMat('sirenPool', [1, 1, 1]);

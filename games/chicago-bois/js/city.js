@@ -653,7 +653,7 @@
     const hx = x + nx * 2.3, hz = z + nz * 2.3;
     P.sBox.add(hx, YB + h - 0.1, hz, 0.7, 0.22, 0.7, hex(0x2d3436));
     P.sLamp.add(hx, YB + h - 0.25, hz, 0.5, 0.08, 0.5);
-    P.sLampPool.add(hx, YB + 0.03, hz, 13, 1, 13);
+    P.sLampPool.add(hx, YB + 0.03, hz, 16, 1, 16);
     addCollider(x - 0.15, z - 0.15, x + 0.15, z + 0.15, h, 'pole');
     City.lamps.push({ x: hx, z: hz });
   }
@@ -981,6 +981,100 @@
     A.quad([x1, y, z0], [x1 + w, y, z0 - w], [x1 + w, y, z1 + w], [x1, y, z1], [0, 1, 0], null, null, [D, T, T, D]);
   }
 
+  // Soft dark blob on the ground (oil stains, wear) drawn with the contact-shadow mesh.
+  function softRect(x0, z0, x1, z1, w, a, y) {
+    const D = [0, 0, 0, a], T = [0, 0, 0, 0], A = City.aoGeo;
+    A.quad([x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1], [0, 1, 0], null, null, [D, D, D, D]);
+    A.quad([x0 - w, y, z0 - w], [x1 + w, y, z0 - w], [x1, y, z0], [x0, y, z0], [0, 1, 0], null, null, [T, T, D, D]);
+    A.quad([x0, y, z1], [x1, y, z1], [x1 + w, y, z1 + w], [x0 - w, y, z1 + w], [0, 1, 0], null, null, [D, D, T, T]);
+    A.quad([x0 - w, y, z0 - w], [x0, y, z0], [x0, y, z1], [x0 - w, y, z1 + w], [0, 1, 0], null, null, [T, D, D, T]);
+    A.quad([x1, y, z0], [x1 + w, y, z0 - w], [x1 + w, y, z1 + w], [x1, y, z1], [0, 1, 0], null, null, [D, T, T, D]);
+  }
+
+  // Worn streets: manhole covers, asphalt patches, cracks and oil stains in the parking lanes.
+  // (Own random stream so the rest of the city layout doesn't change.)
+  function roadDetails() {
+    const DR = CB.rng(5150), N = C.N;
+    const crackCol = CB.shade(PAL.asphalt, 0.62);
+    for (let i = 0; i <= N; i++) {
+      const rc = CB.road(i);
+      for (let j = 0; j < N; j++) {
+        const a = CB.road(j) + 8, b = CB.road(j + 1) - 8;
+        for (const ax of [0, 1]) {
+          // ax 0: N-S road at x = rc; ax 1: E-W road at z = rc. P(u along, v across) -> world
+          const W = (u, v) => ax ? [u, rc + v] : [rc + v, u];
+          const mid = W((a + b) / 2, 0);
+          if (City.inRiver(mid[0], mid[1]) || City.inRiver(...W(a, 0)) || City.inRiver(...W(b, 0))) continue;
+          const rect = (u0, v0, u1, v1, y, col) => { const p = W(u0, v0), q = W(u1, v1); G.flat(Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1]), y, col); };
+          // manholes in the driving lanes
+          for (let k = DR.int(0, 2); k > 0; k--) {
+            const p = W(DR.range(a + 4, b - 4), DR.pick([-3.2, -1.6, 1.6, 3.2]));
+            P.sCyl.add(p[0], 0.012, p[1], 0.95, 0.02, 0.95, hex(0x2a2b2e));
+            P.sCyl.add(p[0], 0.02, p[1], 0.72, 0.02, 0.72, hex(0x393a3d));
+          }
+          // patched asphalt
+          for (let k = DR.int(0, 3); k > 0; k--) {
+            const u = DR.range(a, b - 6), v = DR.range(-6.2, 4);
+            rect(u, v, u + DR.range(1.5, 6), v + DR.range(0.8, 2.6), 0.004, CB.shade(PAL.asphalt, DR.chance(0.6) ? DR.range(0.8, 0.9) : DR.range(1.08, 1.16)));
+          }
+          // hairline cracks
+          for (let k = DR.int(1, 4); k > 0; k--) {
+            let u = DR.range(a, b), v = DR.range(-6.3, 6.3);
+            for (let n = DR.int(3, 6); n > 0; n--) {
+              const u2 = u + DR.range(-1.2, 1.2), v2 = M.clamp(v + DR.range(-0.9, 0.9), -6.6, 6.6);
+              const p = W(u, v), q = W(u2, v2), dx = q[0] - p[0], dz = q[1] - p[1], l = Math.hypot(dx, dz) || 1;
+              const ox = -dz / l * 0.035, oz = dx / l * 0.035;
+              G.quad([p[0] - ox, 0.006, p[1] - oz], [q[0] - ox, 0.006, q[1] - oz], [q[0] + ox, 0.006, q[1] + oz], [p[0] + ox, 0.006, p[1] + oz], [0, 1, 0], crackCol);
+              u = u2; v = v2;
+            }
+          }
+          // oil stains where cars park
+          for (let k = DR.int(1, 4); k > 0; k--) {
+            const u = DR.range(a + 2, b - 2), v = DR.pick([-5.6, 5.6]) + DR.range(-0.4, 0.4);
+            const p = W(u, v), r1 = DR.range(0.25, 0.6), r2 = DR.range(0.3, 0.9);
+            softRect(p[0] - (ax ? r2 : r1), p[1] - (ax ? r1 : r2), p[0] + (ax ? r2 : r1), p[1] + (ax ? r1 : r2), DR.range(0.3, 0.7), DR.range(0.18, 0.34), 0.008);
+          }
+        }
+      }
+    }
+  }
+
+  // Steel fire escape on one side of a building: a landing on every floor from y0 up,
+  // zig-zag stairs between them and a drop ladder at the bottom.
+  let escapes = 0;
+  function fireEscape(x0, z0, x1, z1, side, y0, top, DR) {
+    const alongX = side === 's' || side === 'n';
+    const L = alongX ? x1 - x0 : z1 - z0;
+    if (L < 6.5 || top - y0 < 4.5 || escapes >= 420) return;
+    escapes++;
+    (City.escapes || (City.escapes = [])).push({ x: side === 'e' ? x1 : side === 'w' ? x0 : (x0 + x1) / 2, z: side === 'n' ? z1 : side === 's' ? z0 : (z0 + z1) / 2, side, top });
+    const W = Math.min(L - 2.5, 5.2), D = 1.15;
+    const nx = side === 'e' ? 1 : side === 'w' ? -1 : 0, nz = side === 'n' ? 1 : side === 's' ? -1 : 0;
+    const wx = side === 'e' ? x1 : x0, wz = side === 'n' ? z1 : z0;
+    const c = (alongX ? (x0 + x1) / 2 : (z0 + z1) / 2) + DR.range(-1, 1) * Math.max(0, L - W - 2) / 2;
+    const col = DR.pick([hex(0x24282b), hex(0x33261f), hex(0x1f2b26)]);
+    const box = (u, out, y, su, sy, so, roll) => {
+      const px = alongX ? c + u : wx + nx * out, pz = alongX ? wz + nz * out : c + u;
+      P.sBox.add(px, y, pz, su, sy, so, col, alongX ? 0 : Math.PI / 2, 0, roll || 0);
+    };
+    let k = 0;
+    for (let y = y0; y < top - 1.2; y += 3.5, k++) {
+      box(0, D / 2, y, W, 0.07, D);
+      box(0, D - 0.03, y + 1.0, W, 0.05, 0.05);
+      box(-W / 2 + 0.03, D / 2, y + 1.0, 0.05, 0.05, D); box(W / 2 - 0.03, D / 2, y + 1.0, 0.05, 0.05, D);
+      for (const u of [-W / 2 + 0.03, 0, W / 2 - 0.03]) box(u, D - 0.03, y + 0.5, 0.05, 1.0, 0.05);
+      if (y + 3.5 < top - 1.2) {
+        const run = W * 0.62, len = Math.hypot(run, 3.5), a = Math.atan2(3.5, run) * (k % 2 ? -1 : 1);
+        box(0, D * 0.42, y + 1.75, len, 0.07, 0.6, a);
+        box(0, D * 0.75, y + 2.6, len, 0.05, 0.05, a);
+      }
+    }
+    // drop ladder
+    const lu = W / 2 - 0.6;
+    box(lu - 0.22, D - 0.2, y0 - 1.3, 0.05, 2.6, 0.05); box(lu + 0.22, D - 0.2, y0 - 1.3, 0.05, 2.6, 0.05);
+    for (let r = 0.4; r < 2.6; r += 0.55) box(lu, D - 0.2, y0 - r, 0.44, 0.04, 0.04);
+  }
+
   function roadMarkings() {
     const N = C.N, h = 0.012;
     for (let i = 0; i <= N; i++) {
@@ -1077,6 +1171,7 @@
 
   function genApartments(b) {
     const cx = (b.x0 + b.x1) / 2, ax0 = cx - 3, ax1 = cx + 3;
+    const FE = CB.rng(b.bi * 131 + b.bj * 7 + 99); // fire escapes (separate stream: layout unchanged)
     G.flat(ax0, b.z0 + 0.3, ax1, b.z1 - 0.3, YB + 0.008, PAL.alley);
     for (const half of ['w', 'e']) {
       const front = half === 'w' ? b.ix0 : b.ix1;
@@ -1101,6 +1196,11 @@
         building(bx0, bz0, bx1, bz1, h + (store.length ? 4.2 - 3.5 : 0), style, R.pick(style === 'brick' ? PAL.brick : PAL.stone), { store, district: 'res', room: enter, front: half === 'w' ? 'w' : 'e' });
         const rx = (bx0 + bx1) / 2, rz = (bz0 + bz1) / 2;
         const top = h + (store.length ? 0.7 : 0);
+        if (style === 'brick' && floors >= 3) {
+          const fy = YB + (store.length ? 7 : 3.5);
+          if ((first || last) && FE() < 0.65) fireEscape(bx0, bz0, bx1, bz1, first ? 's' : 'n', fy, top, FE);
+          else if (FE() < 0.4) fireEscape(bx0, bz0, bx1, bz1, half === 'w' ? 'e' : 'w', fy, top, FE);
+        }
         if (R() < 0.3) waterTower(rx + R.range(-2, 2), rz, top);
         else if (R() < 0.6) acUnit(rx, rz, top);
         // backyard garage on the alley
@@ -1655,6 +1755,7 @@
     }
     groundBase();
     roadMarkings();
+    roadDetails();
     riverBridges();
     for (const b of City.blocks) {
       if (b.type !== 'river') blockBase(b);
@@ -1790,6 +1891,13 @@
       const L = [s.sx - rx * w / 2 + s.nx * o, s.sz - rz * w / 2 + s.nz * o];
       const Rr = [s.sx + rx * w / 2 + s.nx * o, s.sz + rz * w / 2 + s.nz * o];
       sg.quad([L[0], y0, L[1]], [Rr[0], y0, Rr[1]], [Rr[0], y1, Rr[1]], [L[0], y1, L[1]], [s.nx, 0, s.nz], [1, 1, 1], [uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[3]]);
+      // neon light on the sidewalk in front of the sign
+      const fg = labels[s.label].fg;
+      if (fg && fg[0] === '#') {
+        const c = hex(parseInt(fg.slice(1), 16));
+        const along = Math.abs(s.ux) > 0.5;
+        P.sNeonPool.add(s.sx + s.nx * 2.0, YB + 0.035, s.sz + s.nz * 2.0, along ? w * 1.5 : 5.5, 1, along ? 5.5 : w * 1.5, c);
+      }
       // awning
       const aw = R.pick(PAL.awning);
       const ax = s.cx + s.nx * 0.75, az = s.cz + s.nz * 0.75;

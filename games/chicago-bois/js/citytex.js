@@ -44,15 +44,23 @@
       for (let fy = 0; fy < N; fy++) {
         for (let fx = 0; fx < N; fx++) {
           const x = fx * S, y = fy * S;
-          const lit = R() < (kind === 'glass' ? 0.32 : 0.4);
-          const warm = R() < 0.7;
-          const lc = warm ? `rgb(255,${200 + R() * 40 | 0},${110 + R() * 60 | 0})` : `rgb(${190 + R() * 40 | 0},${215 + R() * 30 | 0},255)`;
+          const lit = R() < (kind === 'glass' ? 0.34 : 0.42);
+          const warm = R() < 0.7, tv = !warm && R() < 0.35;
+          const br = 0.75 + R() * 0.25;
+          const rgb = warm ? [255, 200 + R() * 40, 110 + R() * 60] : tv ? [120, 160, 255] : [190 + R() * 40, 215 + R() * 30, 255];
+          const room = (ex, ey, w, h) => {
+            const col = (k) => `rgb(${rgb[0] * k * br | 0},${rgb[1] * k * br | 0},${rgb[2] * k * br | 0})`;
+            const g = e.createLinearGradient(0, ey, 0, ey + h);
+            g.addColorStop(0, col(1)); g.addColorStop(0.55, col(0.82)); g.addColorStop(1, col(0.45));
+            return g;
+          };
+          const lc = { fill: room, rgb };
           const blind = R() < 0.3 ? R() * 0.5 : 0;
           if (kind === 'office') {
             c.fillStyle = '#dcdcdc'; c.fillRect(x, y, S, S);
             c.fillStyle = '#bdbdbd'; c.fillRect(x, y + S - 14, S, 14);
             win(c, x + 12, y + 18, S - 24, S - 40, R, blind, wins);
-            if (lit) { e.fillStyle = lc; e.fillRect(x + 14, y + 20 + (S - 44) * blind, S - 28, (S - 44) * (1 - blind)); }
+            if (lit) litWin(e, lc, x + 14, y + 20 + (S - 44) * blind, S - 28, (S - 44) * (1 - blind), R);
           } else if (kind === 'brick') {
             c.fillStyle = '#cfcfcf'; c.fillRect(x, y, S, S);
             c.fillStyle = '#b8b8b8';
@@ -63,13 +71,13 @@
             c.fillStyle = '#eeeeee'; c.fillRect(x + 30, y + 20, 68, 6); c.fillRect(x + 28, y + 104, 72, 7);
             win(c, x + 34, y + 26, 60, 78, R, blind, wins);
             c.fillStyle = '#e6e6e6'; c.fillRect(x + 63, y + 26, 2, 78); c.fillRect(x + 34, y + 62, 60, 2);
-            if (lit) { e.fillStyle = lc; e.fillRect(x + 36, y + 28 + 74 * blind, 56, 74 * (1 - blind)); }
+            if (lit) litWin(e, lc, x + 36, y + 28 + 74 * blind, 56, 74 * (1 - blind), R);
           } else if (kind === 'stone') {
             c.fillStyle = '#e8e2d6'; c.fillRect(x, y, S, S);
             c.fillStyle = '#d4cbbb'; c.fillRect(x, y + S - 10, S, 10); c.fillRect(x, y + 4, S, 3);
             for (const wx of [18, 70]) {
               win(c, x + wx, y + 22, 40, 86, R, blind, wins);
-              if (lit) { e.fillStyle = lc; e.fillRect(x + wx + 2, y + 24 + 82 * blind, 36, 82 * (1 - blind)); }
+              if (lit) litWin(e, lc, x + wx + 2, y + 24 + 82 * blind, 36, 82 * (1 - blind), R);
             }
           } else { // glass curtain wall
             const g = c.createLinearGradient(x, y, x + S, y + S);
@@ -79,7 +87,7 @@
             wins.push([x + 4, y + 5, S - 6, S - 28]);
             c.fillStyle = '#2e3842'; c.fillRect(x, y, S, 5); c.fillRect(x, y, 4, S); c.fillRect(x + 62, y, 2, S);
             c.fillStyle = '#3e4b57'; c.fillRect(x, y + S - 22, S, 22);
-            if (lit) { e.fillStyle = lc; e.globalAlpha = 0.75; e.fillRect(x + 4, y + 5, S - 6, S - 28); e.globalAlpha = 1; }
+            if (lit) { e.globalAlpha = 0.8; litWin(e, lc, x + 4, y + 5, S - 6, S - 28, R); e.globalAlpha = 1; }
           }
         }
       }
@@ -201,6 +209,28 @@
       return tex;
     },
   };
+
+  // A lit window seen from outside: the room's light (bright near the ceiling), sometimes a
+  // curtain on one side or a lamp-lit silhouette of furniture.
+  function litWin(e, lc, x, y, w, h, R) {
+    if (h < 3) return;
+    e.fillStyle = lc.fill(x, y, w, h); e.fillRect(x, y, w, h);
+    const [r, g, b] = lc.rgb;
+    if (R() < 0.35) { // curtain
+      const cw = w * (0.18 + R() * 0.2), left = R() < 0.5;
+      e.fillStyle = `rgba(${r * 0.55 | 0},${g * 0.45 | 0},${b * 0.35 | 0},0.85)`;
+      e.fillRect(left ? x : x + w - cw, y, cw, h);
+    }
+    if (R() < 0.3) { // furniture / person silhouette at the bottom
+      e.fillStyle = 'rgba(0,0,0,0.55)';
+      const sx = x + w * (0.15 + R() * 0.5), sw = w * (0.15 + R() * 0.25), sh = h * (0.15 + R() * 0.25);
+      e.fillRect(sx, y + h - sh, sw, sh);
+    }
+    // ceiling light hot spot
+    const hg = e.createRadialGradient(x + w / 2, y, 1, x + w / 2, y, w * 0.7);
+    hg.addColorStop(0, 'rgba(255,250,235,0.45)'); hg.addColorStop(1, 'rgba(255,250,235,0)');
+    e.fillStyle = hg; e.fillRect(x, y, w, h * 0.6);
+  }
 
   function win(c, x, y, w, h, R, blind, rec) {
     if (rec) rec.push([x, y, w, h]);

@@ -40,9 +40,11 @@ Mugging people with a weapon (+10%; robbing a cop +25% and they come after you),
 
 ## Graphics settings
 
-- **High** (default): 4096 px sun shadows, glowing neon/lights, bloom, MSAA and sharpening, long draw distance.
-- **Medium**: 2048 px shadows and glow.
+- **High** (default): 4096 px sun shadows, glowing neon and lights, bloom, MSAA and sharpening, filmic (ACES) colour grading, and real-time reflections of the skyline in the lake and the river.
+- **Medium**: 2048 px shadows and glow; the water reflects the sky.
 - **Low**: no shadows or glow, lower resolution, shorter draw distance.
+
+On every setting: animated water with sun and moon glints and foam along the lakeshore, a sky with drifting self-shadowed clouds that turn pink at sunset, lit apartment and office windows at night, pools of light under street lamps and neon signs, and haze that thins out when you look at the city from above.
 
 If the frame rate stays below ~30 FPS the game steps the quality down once by itself (until you pick a quality in Settings).
 

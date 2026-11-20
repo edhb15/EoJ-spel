@@ -5,6 +5,61 @@
   const B = BABYLON, M = CB.M, C = CB.C, hex = M.hex;
   const LM = CB.Landmarks = {};
 
+  // ---------------------------------------------------------- water shader
+  // Three scrolling scales of a tileable wave normal map, Fresnel reflection of the sky
+  // (or of the real skyline from a planar mirror on High), sun / moon glints and foam at the shore.
+  B.Effect.ShadersStore.cbWaterVertexShader = `
+    precision highp float;
+    attribute vec3 position;
+    uniform mat4 world, viewProjection;
+    varying vec3 vW; varying vec4 vClip;
+    void main() { vec4 w = world * vec4(position, 1.0); vW = w.xyz; vClip = viewProjection * w; gl_Position = vClip; }`;
+  B.Effect.ShadersStore.cbWaterFragmentShader = `
+    precision highp float;
+    varying vec3 vW; varying vec4 vClip;
+    uniform vec3 camPos, sunDir, sunColor, topColor, horizonColor, deepColor, fogColor;
+    uniform vec2 flow, fogInfo;
+    uniform float time, night, mirrorK, shoreX, waveK;
+    uniform sampler2D normalTex, mirrorTex;
+    vec2 nrm(vec2 uv) { return texture2D(normalTex, uv).xy * 2.0 - 1.0; }
+    void main() {
+      vec2 p = vW.xz;
+      float dist = length(camPos - vW);
+      vec2 n = nrm(p * 0.031 + flow * time * 0.012 + vec2(time * 0.004, 0.0)) * 0.9
+             + nrm(p * 0.083 + vec2(-time * 0.019, time * 0.013) + flow * time * 0.02) * 0.55
+             + nrm(p * 0.0083 + vec2(time * 0.003, -time * 0.002)) * 1.0;
+      float fade = clamp(dist / 700.0, 0.0, 0.85);
+      vec3 N = normalize(vec3(n.x * waveK * (1.0 - fade), 1.0, n.y * waveK * (1.0 - fade)));
+      vec3 V = normalize(camPos - vW);
+      float ndv = max(dot(N, V), 0.0);
+      float fres = 0.025 + 0.975 * pow(1.0 - ndv, 5.0);
+      vec3 R = reflect(-V, N);
+      R.y = abs(R.y);
+      vec3 refl = mix(horizonColor, topColor, pow(R.y, 0.6));
+      // the skyline (planar mirror), wobbling with the waves
+      vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5 + N.xz * 0.045 * (1.0 - fade);
+      vec4 mr = texture2D(mirrorTex, suv);
+      refl = mix(refl, mr.rgb, mr.a * mirrorK);
+      vec3 sd = normalize(sunDir);
+      float s = max(dot(R, sd), 0.0);
+      vec3 glint = sunColor * (pow(s, 900.0) * 9.0 + pow(s, 80.0) * 0.35) * (1.0 - night);
+      float m = max(dot(R, -sd), 0.0);
+      glint += vec3(0.75, 0.82, 1.0) * (pow(m, 600.0) * 2.5 + pow(m, 60.0) * 0.12) * night;
+      vec3 body = deepColor * (0.18 + 0.82 * (1.0 - night)) * (0.75 + 0.25 * N.y);
+      vec3 col = mix(body, refl, clamp(fres * 1.15, 0.0, 1.0)) + glint;
+      // foam along the lake shore
+      float sx = vW.x - shoreX;
+      if (sx > 0.0 && sx < 8.0) {
+        float fn = texture2D(normalTex, p * 0.12 + vec2(time * 0.02, 0.0)).z;
+        float fn2 = texture2D(normalTex, p * 0.31 - vec2(0.0, time * 0.03)).z;
+        float edge = 1.0 - smoothstep(0.0, 4.5, sx + n.x * 1.2 - 0.8 * sin(time * 0.9 + p.y * 0.15));
+        float foam = edge * smoothstep(0.62, 0.86, fn * 0.6 + fn2 * 0.4 + edge * 0.22);
+        col = mix(col, vec3(0.9, 0.94, 0.96) * (1.0 - night * 0.75), foam * 0.65);
+      }
+      float f = clamp((fogInfo.y - dist) / (fogInfo.y - fogInfo.x), 0.0, 1.0);
+      gl_FragColor = vec4(mix(fogColor, col, f), 1.0);
+    }`;
+
   LM.init = function (scene) {
     const P = CB.Pools, City = CB.City;
 
@@ -31,39 +86,47 @@
     // ---------------------------------------------------------- Lake Michigan
     const water = B.MeshBuilder.CreateGround('lake', { width: 2400, height: 3000, subdivisions: 1 }, scene);
     water.position.set(C.SHORE + 1200, City.waterY, 0);
-    const wm = new B.StandardMaterial('lakeMat', scene);
-    wm.diffuseColor = new B.Color3(0.08, 0.3, 0.48);
-    wm.specularColor = new B.Color3(0.9, 0.9, 0.9); wm.specularPower = 160;
-    wm.bumpTexture = waterNormals(scene);
-    wm.bumpTexture.uScale = 140; wm.bumpTexture.vScale = 175;
-    wm.bumpTexture.level = 0.6;
-    wm.reflectionTexture = probe.cubeTexture;
-    wm.reflectionFresnelParameters = new B.FresnelParameters();
-    wm.reflectionFresnelParameters.bias = 0.15;
-    wm.reflectionFresnelParameters.power = 2.5;
-    wm.reflectionFresnelParameters.leftColor = new B.Color3(0.9, 0.9, 0.9);
-    wm.reflectionFresnelParameters.rightColor = new B.Color3(0.15, 0.15, 0.15);
-    water.material = wm;
+    const wn = this.waterNormalTex = waterNormals(scene);
+    this.blankTex = new B.RawTexture(new Uint8Array([0, 0, 0, 0]), 1, 1, B.Engine.TEXTUREFORMAT_RGBA, scene, false);
+    this.waterMats = [];
+    const waterMat = (name, deep, flow, shore, waves) => {
+      const m = new B.ShaderMaterial(name, scene, 'cbWater', {
+        attributes: ['position'],
+        uniforms: ['world', 'viewProjection', 'camPos', 'sunDir', 'sunColor', 'topColor', 'horizonColor', 'deepColor', 'fogColor', 'flow', 'fogInfo', 'time', 'night', 'mirrorK', 'shoreX', 'waveK'],
+        samplers: ['normalTex', 'mirrorTex'],
+      });
+      m.setTexture('normalTex', wn); m.setTexture('mirrorTex', this.blankTex);
+      m.setColor3('deepColor', new B.Color3(deep[0], deep[1], deep[2]));
+      m.setVector2('flow', new B.Vector2(flow[0], flow[1]));
+      m.setFloat('shoreX', shore); m.setFloat('mirrorK', 0); m.setFloat('waveK', waves);
+      this.waterMats.push(m);
+      return m;
+    };
+    water.material = waterMat('lakeMat', [0.035, 0.16, 0.25], [0, 0], C.SHORE, 0.24);
     water.isPickable = false;
-    water.receiveShadows = true;
-    this.water = water; this.waterMat = wm;
-    // the Chicago River (same water material; the main branch starts east of the south branch so they don't overlap)
+    this.water = water;
+    // the Chicago River (the main branch starts east of the south branch so they don't overlap)
     const rivers = City.rivers;
     this.riverMeshes = rivers.map((r, k) => {
       const x0 = k === 0 ? rivers[1].x1 : r.x0, x1 = Math.min(r.x1, C.SHORE + 0.5);
       const m = B.MeshBuilder.CreateGround('river' + k, { width: x1 - x0, height: r.z1 - r.z0 }, scene);
       m.position.set((x0 + x1) / 2, City.waterY + 0.01, (r.z0 + r.z1) / 2);
-      const rm = wm.clone('riverMat' + k);
-      rm.diffuseColor = new B.Color3(0.1, 0.3, 0.27);
-      rm.reflectionFresnelParameters = new B.FresnelParameters();
-      rm.reflectionFresnelParameters.bias = 0.05; rm.reflectionFresnelParameters.power = 3;
-      rm.reflectionFresnelParameters.leftColor = new B.Color3(0.3, 0.3, 0.3);
-      rm.reflectionFresnelParameters.rightColor = new B.Color3(0.04, 0.04, 0.04);
-      rm.bumpTexture = wm.bumpTexture.clone();
-      rm.bumpTexture.uScale = (x1 - x0) / 17; rm.bumpTexture.vScale = (r.z1 - r.z0) / 17;
-      m.material = rm; m.isPickable = false; m.receiveShadows = true;
+      const along = (x1 - x0) > (r.z1 - r.z0);
+      m.material = waterMat('riverMat' + k, [0.03, 0.11, 0.095], along ? [1, 0] : [0, 1], -1e5, 0.17);
+      m.isPickable = false;
       return m;
     });
+    // fountain basin keeps a simple shiny material (it isn't at lake level)
+    const wm = new B.StandardMaterial('fountainMat', scene);
+    wm.diffuseColor = new B.Color3(0.1, 0.32, 0.45);
+    wm.specularColor = new B.Color3(0.9, 0.9, 0.9); wm.specularPower = 160;
+    wm.bumpTexture = wn; wm.bumpTexture.level = 0.5;
+    wm.reflectionTexture = probe.cubeTexture;
+    wm.reflectionFresnelParameters = new B.FresnelParameters();
+    wm.reflectionFresnelParameters.bias = 0.15; wm.reflectionFresnelParameters.power = 2.5;
+    wm.reflectionFresnelParameters.leftColor = new B.Color3(0.9, 0.9, 0.9);
+    wm.reflectionFresnelParameters.rightColor = new B.Color3(0.15, 0.15, 0.15);
+    this.waterMat = wm;
     // tour boats cruising the main branch
     this.boats = [];
     const r1 = rivers[0], rx0 = rivers[1].x1 + 12, rx1 = C.SHORE + 60;
@@ -163,27 +226,47 @@
     this.trainWindows = this.train.map((r) => r.parts[4]);
   };
 
+  // Tileable wave normals: a sum of sines with integer frequencies in many directions (no visible grid),
+  // plus a foam mask in the blue channel.
   function waterNormals(scene) {
     const S = 256;
     const t = new B.DynamicTexture('waterN', { width: S, height: S }, scene, true);
     const c = t.getContext();
     const img = c.createImageData(S, S);
-    const h = (x, y) => {
-      const u = x / S * Math.PI * 2, v = y / S * Math.PI * 2;
-      return Math.sin(u * 3 + Math.sin(v * 2) * 0.8) * 0.5 + Math.sin(v * 5 + u * 2) * 0.3 + Math.sin((u + v) * 7) * 0.15 + Math.sin(u * 11 - v * 4) * 0.08;
-    };
+    const R = CB.rng(4242), waves = [];
+    while (waves.length < 30) {
+      const fx = R.int(-16, 16), fy = R.int(-16, 16), f = Math.hypot(fx, fy);
+      if (f < 2.5 || f > 16.5) continue;
+      waves.push({ fx: fx * Math.PI * 2, fy: fy * Math.PI * 2, a: 1 / Math.pow(f, 1.6), ph: R() * Math.PI * 2 });
+    }
+    const gx = new Float32Array(S * S), gy = new Float32Array(S * S), hh = new Float32Array(S * S);
+    let ss = 0;
     for (let y = 0; y < S; y++) {
       for (let x = 0; x < S; x++) {
-        const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1);
-        let nx = -dx * 3, ny = -dy * 3, nz = 1;
-        const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
-        const i = (y * S + x) * 4;
-        img.data[i] = (nx * 0.5 + 0.5) * 255; img.data[i + 1] = (ny * 0.5 + 0.5) * 255; img.data[i + 2] = (nz * 0.5 + 0.5) * 255; img.data[i + 3] = 255;
+        const u = x / S, v = y / S;
+        let ax = 0, ay = 0, h = 0;
+        for (const w of waves) {
+          const g = w.fx * u + w.fy * v + w.ph;
+          const cs = Math.cos(g) * w.a;
+          ax += cs * w.fx; ay += cs * w.fy; h += Math.sin(g) * w.a;
+        }
+        const i = y * S + x;
+        gx[i] = ax; gy[i] = ay; hh[i] = h; ss += ax * ax + ay * ay;
       }
+    }
+    const k = 0.42 / Math.sqrt(ss / (S * S));
+    let hmin = 1e9, hmax = -1e9;
+    for (let i = 0; i < S * S; i++) { hmin = Math.min(hmin, hh[i]); hmax = Math.max(hmax, hh[i]); }
+    for (let i = 0; i < S * S; i++) {
+      let nx = -gx[i] * k, ny = -gy[i] * k, nz = 1;
+      const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l;
+      img.data[i * 4] = (nx * 0.5 + 0.5) * 255; img.data[i * 4 + 1] = (ny * 0.5 + 0.5) * 255;
+      img.data[i * 4 + 2] = (hh[i] - hmin) / (hmax - hmin) * 255; img.data[i * 4 + 3] = 255;
     }
     c.putImageData(img, 0, 0);
     t.update();
     t.wrapU = t.wrapV = B.Texture.WRAP_ADDRESSMODE;
+    t.anisotropicFilteringLevel = 4;
     return t;
   }
 
@@ -238,16 +321,83 @@
       boat.win.vis = n > 0.25;
       if (M.dist2(boat.x, boat.z, focusX, focusZ) < 400 * 400) r.update();
     }
-    // water ripples
-    const bt = this.waterMat.bumpTexture;
-    bt.uOffset += dt * 0.004; bt.vOffset += dt * 0.0025;
-    for (const rm of this.riverMeshes) { rm.material.bumpTexture.uOffset += dt * 0.02; }
+    // water
+    this.waterT = (this.waterT || 0) + dt;
+    this.updateWater(dt, game);
     // refresh reflections now and then when near
     this.probeT -= dt;
     if (this.probeT <= 0) {
       this.probeT = 2.5;
       this.probe.cubeTexture.resetRefreshCounter();
     }
+  };
+
+  // Sky / fog uniforms for the water and the planar mirror (High quality only).
+  LM.updateWater = function (dt, game) {
+    const sk = game.sky, scene = this.water.getScene(), cam = scene.activeCamera;
+    if (!sk || !cam) return;
+    const top = new B.Color3(sk.top[0], sk.top[1], sk.top[2]), hor = new B.Color3(sk.hor[0], sk.hor[1], sk.hor[2]);
+    const sd = new B.Vector3(sk.sun[0], sk.sun[1], sk.sun[2]), sc = new B.Color3(sk.sunCol[0], sk.sunCol[1], sk.sunCol[2]);
+    const fog = new B.Vector2(scene.fogStart, scene.fogEnd);
+    // mirror only when water is close enough to matter
+    let near = false;
+    if (this.mirror) {
+      const p = cam.position, City = CB.City;
+      const d = waterDist(p.x, p.z);
+      // only while some water surface is close and actually inside the view
+      if (d < 320 + Math.max(0, p.y) * 3) {
+        const planes = B.Frustum.GetPlanes(scene.getTransformMatrix());
+        near = this.water.isInFrustum(planes) && d < 900 || this.riverMeshes.some((m) => m.isInFrustum(planes));
+      }
+      const rts = scene.customRenderTargets, i = rts.indexOf(this.mirror);
+      if (near && i < 0) { rts.push(this.mirror); this.mirrorT = 0; } else if (!near && i >= 0) rts.splice(i, 1);
+      this.mirrorT -= dt;
+      if (near && this.mirrorT <= 0) {
+        // buildings close to the water (and tall glass towers further back) can show up in it
+        this.mirrorT = 0.5;
+        const rl = this.mirror.renderList; rl.length = 0;
+        for (const c of City.chunkMeshes) {
+          if (c.kind === 'interior' || !c.mesh.isEnabled()) continue;
+          if (c.wd == null) c.wd = waterDist(c.x, c.z);
+          const dc = M.dist(c.x, c.z, p.x, p.z);
+          if (dc < 650 && (c.wd < 190 || (c.kind === 'glass' && dc < 800))) rl.push(c.mesh);
+        }
+        for (const m of [City.signMesh, this.wheel, this.bulbs, this.bean]) if (m) rl.push(m);
+      }
+    }
+    for (const m of this.waterMats) {
+      m.setVector3('camPos', cam.position);
+      m.setVector3('sunDir', sd); m.setColor3('sunColor', sc);
+      m.setColor3('topColor', top); m.setColor3('horizonColor', hor);
+      m.setColor3('fogColor', scene.fogColor); m.setVector2('fogInfo', fog);
+      m.setFloat('time', this.waterT); m.setFloat('night', game.night);
+      m.setFloat('mirrorK', near ? 0.92 : 0);
+    }
+  };
+
+  // Distance from (x, z) to the nearest water (lake or river).
+  function waterDist(x, z) {
+    let d = Math.max(0, C.SHORE - x);
+    for (const r of CB.City.rivers) d = Math.min(d, Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1)));
+    return d;
+  }
+
+  // Planar reflections of the skyline in the lake and river (High quality).
+  LM.setMirror = function (on) {
+    const scene = this.water.getScene();
+    if (this.mirror) {
+      const i = scene.customRenderTargets.indexOf(this.mirror);
+      if (i >= 0) scene.customRenderTargets.splice(i, 1);
+      this.mirror.dispose(); this.mirror = null;
+      for (const m of this.waterMats) m.setTexture('mirrorTex', this.blankTex);
+    }
+    if (!on) return;
+    const mt = new B.MirrorTexture('waterMirror', { ratio: 0.5 }, scene, false);
+    mt.mirrorPlane = B.Plane.FromPositionAndNormal(new B.Vector3(0, CB.City.waterY, 0), new B.Vector3(0, -1, 0));
+    mt.clearColor = new B.Color4(0, 0, 0, 0);
+    mt.refreshRate = 2; // every other frame: unnoticeable on moving water, half the cost
+    this.mirror = mt; this.mirrorT = 0;
+    for (const m of this.waterMats) m.setTexture('mirrorTex', mt);
   };
 
   LM.setProbeList = function (meshes) {
