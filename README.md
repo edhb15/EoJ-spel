@@ -16,6 +16,8 @@ Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen ne
 | [World Domination](https://edhb15.github.io/EoJ-spel/games/world-domination/index.html) | 2D • Strategi |
 | [Stunt Rider 3D](https://edhb15.github.io/EoJ-spel/games/stunt-rider-3d/index.html) | 3D • Motorcykel |
 
+**Kommer snart:** [Chicago Bois](https://edhb15.github.io/chicago-bois/) släpps måndag 23 november. Startsidan visar en popup med trailern, bilder och nedräkning (filer i `dependencies/release/chicago-bois/`). Efter släppet byter rutan till "OUT NOW" i två veckor.
+
 ## Förhandsvisningar
 
 Startsidan använder korta, komprimerade klipp i `dependencies/previews/` (MP4 + JPG-bild).
