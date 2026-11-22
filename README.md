@@ -6,7 +6,7 @@ Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen ne
 
 | Spel | Typ |
 |---|---|
-| [The Legend of Andorra](https://edhb15.github.io/EoJ-spel/games/the-legend-of-andorra/index.html) | 3D • Äventyr • **Endast för dator** |
+| [The Legend of Andorra](https://edhb15.github.io/EoJ-spel/games/the-legend-of-andorra/index.html) | 3D • Äventyr |
 | [Skyward](https://edhb15.github.io/EoJ-spel/games/skyward/index.html) | 3D • Flygsimulator • **Endast för dator** |
 | [Ski to Death 3D](https://edhb15.github.io/EoJ-spel/games/Ski-to-death-3d/index.html) | 3D • Action |
 | [Impossible Rooms 3D](https://edhb15.github.io/EoJ-spel/games/impossible-rooms-3d/index.html) | 3D • Pussel |
