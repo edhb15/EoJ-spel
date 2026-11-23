@@ -443,6 +443,46 @@
             }
         }
 
+        /* ---------- Link to the new world (edwards-spel) ---------- */
+        .world-link {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 16px 20px;
+            flex-wrap: wrap;
+            max-width: 980px;
+            margin: -25px auto 34px;
+            padding: 18px 22px;
+            border-radius: 18px;
+            border: 2px solid transparent;
+            background:
+                linear-gradient(110deg, #10301c, #191a40 55%, #2a1236) padding-box,
+                linear-gradient(90deg, var(--blue), var(--purple), #ff79c6) border-box;
+            box-shadow: 0 12px 40px #a970ff30;
+            color: var(--text);
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            animation: fadeIn 0.8s ease both;
+        }
+        .world-link:hover,
+        .world-link:focus-visible { transform: translateY(-3px); box-shadow: 0 16px 50px #5ee7ff40; outline: none; }
+        .wl-icon { font-size: 2.6rem; animation: spinGlobe 8s linear infinite; }
+        @keyframes spinGlobe { 50% { transform: rotate(-12deg) scale(1.08); } }
+        .wl-text { flex: 1; min-width: 220px; display: grid; gap: 4px; }
+        .wl-text b { font-size: 1.25rem; }
+        .wl-text > span { color: var(--muted); line-height: 1.45; }
+        .wl-new { display: inline-block; margin-right: 6px; padding: 2px 8px; border-radius: 6px; background: #ffe14d; color: #1a1400; font-size: 0.75rem; font-weight: 900; letter-spacing: 1px; vertical-align: middle; }
+        .wl-go {
+            padding: 12px 20px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, var(--blue), var(--purple));
+            color: #0b0b16;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+        @media (max-width: 500px) { .world-link { margin-top: -15px; } .wl-go { margin-left: auto; } }
+
         /* ---------- Release announcement (Chicago Bois) ---------- */
         .release-banner {
             display: flex;
@@ -578,6 +618,16 @@
             📤 Dela sidan med en kompis
         </button>
     </header>
+
+    <!-- The new world version of the site: https://github.com/edhb15/edwards-spel -->
+    <a class="world-link" href="https://edhb15.github.io/edwards-spel/" data-goatcounter-click="till-varlden" data-goatcounter-title="till nya världen">
+        <span class="wl-icon" aria-hidden="true">🌍</span>
+        <span class="wl-text">
+            <b><span class="wl-new">NYTT!</span>Utforska Edwards och Johns spel som en hel värld</b>
+            <span>Gå runt bland spelen, lös dagens mysteriespel, besegra veckans boss med alla andra, inred ditt eget rum, utmana kompisar och hitta hemligheterna.</span>
+        </span>
+        <span class="wl-go">Till världen →</span>
+    </a>
 
     <!-- Release announcement: Chicago Bois (popup on arrival + banner), see the script at the bottom -->
     <div class="release-banner" id="release-banner" hidden>
