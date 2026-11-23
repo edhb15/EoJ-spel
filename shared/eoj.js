@@ -10,6 +10,7 @@
 //   EOJ.submitScore(board, name, score, opt)  save to leaderboard (online if configured, else this device)
 //   EOJ.topScores(board, opt)                 top 10, best score per name
 //   EOJ.resultPanel(opts)                     ready-made "share + leaderboard" box to drop into a results screen
+//                                             (its score also hurts the boss in the world, see "boss damage" below)
 //   EOJ.toast(msg)
 (function () {
   'use strict';
@@ -236,6 +237,52 @@
     return name;
   }
 
+  // ---------------------------------------------------------------- boss damage for the world
+  // Every game that loads this file fights the boss in the world (edhb15.github.io/edwards-spel):
+  //   u:time:<game>   sent every 2 minutes while you actively play (score = 120 seconds)
+  //   u:res:<board>   sent automatically when a result screen with a score is shown
+  // The world turns these rows into damage. Same "scores" table as the leaderboards; nothing else to set up.
+  const GAME_IDS = {
+    'the-legend-of-andorra': 'andorra', skyward: 'skyward', 'stunt-rider-3d': 'stunt', 'open-world-sweden': 'sweden',
+    'Ski-to-death-3d': 'ski', matchdag: 'matchdag', 'smita-fran-ledet': 'smita', 'teacher-meltdown': 'teacher',
+    'impossible-rooms-3d': 'rooms', 'world-domination': 'world', 'chicago-bois': 'chicago',
+  };
+  function gameId() {
+    const parts = location.pathname.split('/');
+    for (const part of parts) if (GAME_IDS[part]) return GAME_IDS[part];
+    return null;
+  }
+  const reported = new Set();
+  function report(board, score) {
+    const c = cfg();
+    if (!c) return;
+    const key = board + '|' + score;
+    if (board.startsWith('u:res:') && reported.has(key)) return;
+    reported.add(key);
+    const name = cleanName(store.get('name', '')) || 'Anonym';
+    fetch(c.supabaseUrl.replace(/\/$/, '') + '/rest/v1/scores', {
+      method: 'POST',
+      headers: headers(c, { 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify({ board: String(board).slice(0, 60), name, score: Math.max(0, Math.min(99999999, Math.round(score))) }),
+    }).catch(() => {});
+  }
+  (function playTime() {
+    const id = gameId();
+    if (!id) return;
+    let last = Date.now();
+    let active = 0;
+    const poke = () => { last = Date.now(); };
+    ['keydown', 'pointerdown', 'pointermove', 'touchstart', 'wheel', 'mousemove'].forEach((ev) => window.addEventListener(ev, poke, { passive: true, capture: true }));
+    setInterval(() => {
+      if (document.visibilityState !== 'visible' || Date.now() - last > 60000) return;
+      active += 10;
+      if (active >= 120) {
+        active = 0;
+        report('u:time:' + id, 120);
+      }
+    }, 10000);
+  })();
+
   async function topScores(board, opt) {
     board = cleanBoard(board);
     const low = !!(opt && opt.lowerIsBetter);
@@ -290,6 +337,7 @@
     p.appendChild(shareBtn);
 
     if (!board) return p;
+    if (isFinite(o.score) && o.score > 0) report('u:res:' + board, o.score);
 
     const head = el('div', 'eoj-head');
     head.appendChild(el('span', '', o.daily ? T.boardDaily : T.board));

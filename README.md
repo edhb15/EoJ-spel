@@ -2,7 +2,9 @@
 
 Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen nedladdning:
 
-**▶ https://edhb15.github.io/EoJ-spel/**
+**▶ https://edhb15.github.io/edwards-spel/** – startsidan är nu en hel värld ([edwards-spel](https://github.com/edhb15/edwards-spel)). `https://edhb15.github.io/EoJ-spel/` skickar dit automatiskt. Spelen ligger kvar här i `games/`, och den gamla listan finns på `klassisk.html`.
+
+**Bossen i världen:** `shared/eoj.js` skickar speltid (`u:time:<spel>` var 2:a minut) och resultat (`u:res:<topplista>`) till samma `scores`-tabell som topplistorna. Världen räknar om det till skada på bossen. Spel som inte hade `eoj.js` (Andorra, Skyward, World Domination, Open World Sweden) laddar den nu också.
 
 | Spel | Typ |
 |---|---|
