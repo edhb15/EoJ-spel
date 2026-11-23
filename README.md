@@ -4,6 +4,8 @@ Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen ne
 
 **▶ https://edhb15.github.io/EoJ-spel/**
 
+**🌍 Nytt:** samma spel i en hel värld att gå runt i – https://edhb15.github.io/edwards-spel/ ([edwards-spel](https://github.com/edhb15/edwards-spel)). Startsidan här länkar dit med en stor ruta högst upp.
+
 | Spel | Typ |
 |---|---|
 | [The Legend of Andorra](https://edhb15.github.io/EoJ-spel/games/the-legend-of-andorra/index.html) | 3D • Äventyr |
