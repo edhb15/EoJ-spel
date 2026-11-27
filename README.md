@@ -18,6 +18,7 @@ Gratis webbspel gjorda av Edward och John. Spela direkt i webbläsaren, ingen ne
 | [Teacher Meltdown](https://edhb15.github.io/EoJ-spel/games/teacher-meltdown/index.html) | 2D • Kaos |
 | [World Domination](https://edhb15.github.io/EoJ-spel/games/world-domination/index.html) | 2D • Strategi |
 | [Stunt Rider 3D](https://edhb15.github.io/EoJ-spel/games/stunt-rider-3d/index.html) | 3D • Motorcykel |
+| [TVÄTTBERT: RED ZONE](https://edhb15.github.io/EoJ-spel/games/tvattbert-red-zone/index.html) | 3D • FPS • Överlevnad • **Endast för dator** |
 
 **Kommer snart:** [Chicago Bois](https://edhb15.github.io/chicago-bois/) släpps måndag 23 november. Startsidan visar en popup med trailern, bilder och nedräkning (filer i `dependencies/release/chicago-bois/`). Efter släppet byter rutan till "OUT NOW" i två veckor.
 

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TVÄTTBERT: RED ZONE</title>
+<link rel="stylesheet" href="src/styles.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/Sky.js": "./vendor/Sky.js" } }
+</script>
+</head>
+<body>
+<div id="game"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="compass"><div id="compass-strip"></div><div id="compass-needle"></div></div>
+  <div id="clock"></div>
+  <div id="location"></div>
+  <div id="infection" class="hidden">
+    <div class="inf-title">⚠ INFEKTERAD – ZOMBIEVIRUS</div>
+    <div id="inf-timer">05:00</div>
+    <div id="inf-hint"></div>
+  </div>
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmarker"></div>
+  <div id="prompt"></div>
+  <div id="progress" class="hidden"><div id="progress-bar"></div><span id="progress-label"></span></div>
+  <div id="stats">
+    <div class="stat"><span>HÄLSA</span><div class="bar"><div id="bar-health"></div></div></div>
+    <div class="stat"><span>STAMINA</span><div class="bar"><div id="bar-stamina"></div></div></div>
+    <div class="stat small"><span>HUNGER</span><div class="bar"><div id="bar-hunger"></div></div></div>
+    <div class="stat small"><span>TÖRST</span><div class="bar"><div id="bar-thirst"></div></div></div>
+    <div id="status-icons"></div>
+  </div>
+  <div id="weapon">
+    <div id="weapon-name"></div>
+    <div id="ammo"><span id="ammo-mag">0</span><span id="ammo-res">/ 0</span></div>
+    <div id="ammo-type"></div>
+    <div id="slots"></div>
+  </div>
+  <div id="messages"></div>
+  <canvas id="minimap" width="200" height="200"></canvas>
+  <div id="damage-dir"></div>
+</div>
+
+<!-- Full map -->
+<div id="mapview" class="hidden panel">
+  <div class="panel-title">KARTA – GÖTEBORG (RÖD ZON) <span class="hint">[M] stäng</span></div>
+  <canvas id="bigmap" width="900" height="900"></canvas>
+  <div id="map-legend"></div>
+</div>
+
+<!-- Inventory -->
+<div id="inventory" class="hidden panel">
+  <div class="panel-title">INVENTARIE <span id="inv-weight"></span> <span class="hint">[TAB] stäng</span></div>
+  <div id="inv-body">
+    <div id="inv-list"></div>
+    <div id="inv-detail"></div>
+  </div>
+</div>
+
+<!-- Dialogue / trade -->
+<div id="dialog" class="hidden panel">
+  <div class="panel-title" id="dlg-name"></div>
+  <div id="dlg-text"></div>
+  <div id="dlg-options"></div>
+</div>
+
+<!-- Menus -->
+<div id="menu" class="screen">
+  <div class="menu-inner">
+    <h1>TVÄTTBERT<span>: RED ZONE</span></h1>
+    <div class="tagline">Göteborg har fallit. Överlev.</div>
+    <div id="loading"><div id="load-bar"><div></div></div><div id="load-text">Laddar Göteborg…</div></div>
+    <div id="menu-buttons" class="hidden">
+      <button id="btn-continue" class="hidden">FORTSÄTT</button>
+      <button id="btn-new">NYTT SPEL</button>
+      <button id="btn-settings">INSTÄLLNINGAR</button>
+      <button id="btn-controls">KONTROLLER</button>
+    </div>
+    <div id="settings" class="hidden sub">
+      <label>Längd på ett spel-dygn
+        <select id="set-daylen">
+          <option value="12">12 min (snabbt)</option>
+          <option value="24" selected>24 min (standard)</option>
+          <option value="48">48 min (långsamt)</option>
+        </select></label>
+      <label>Musens känslighet <input id="set-sens" type="range" min="0.3" max="3" step="0.05" value="1"></label>
+      <label>Grafik
+        <select id="set-quality">
+          <option value="low">Låg</option>
+          <option value="medium" selected>Medel</option>
+          <option value="high">Hög</option>
+        </select></label>
+      <label>Volym <input id="set-vol" type="range" min="0" max="1" step="0.05" value="0.8"></label>
+      <button id="btn-settings-back">TILLBAKA</button>
+    </div>
+    <div id="controls" class="hidden sub">
+      <table>
+        <tr><td>W A S D</td><td>Gå</td></tr>
+        <tr><td>Shift</td><td>Springa (kostar stamina)</td></tr>
+        <tr><td>Mellanslag</td><td>Hoppa</td></tr>
+        <tr><td>C / Ctrl</td><td>Huka dig (tystare)</td></tr>
+        <tr><td>Vänster mus</td><td>Skjut / slå</td></tr>
+        <tr><td>Höger mus</td><td>Sikta</td></tr>
+        <tr><td>R</td><td>Ladda om</td></tr>
+        <tr><td>1–5 / mushjul</td><td>Byt vapen</td></tr>
+        <tr><td>E</td><td>Interagera (dörrar, föremål, sök, prata)</td></tr>
+        <tr><td>F</td><td>Ficklampa</td></tr>
+        <tr><td>H</td><td>Använd bandage / första hjälpen</td></tr>
+        <tr><td>Tab / I</td><td>Inventarie</td></tr>
+        <tr><td>M</td><td>Karta</td></tr>
+        <tr><td>Esc</td><td>Paus</td></tr>
+      </table>
+      <button id="btn-controls-back">TILLBAKA</button>
+    </div>
+    <div class="touch-note">Spelet kräver tangentbord och mus (dator).</div>
+    <div class="credits">Spelvärlden är genererad från bifogad STL-modell (CitySlicer, 4×4 km av Göteborg).</div>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <div class="menu-inner">
+    <h2>PAUS</h2>
+    <div id="pause-inf" class="hidden"></div>
+    <button id="btn-resume">FORTSÄTT</button>
+    <button id="btn-save">SPARA</button>
+    <button id="btn-quit">AVSLUTA TILL MENY</button>
+    <div class="hint">Spelet pausas – men infektionens nedräkning går i verklig tid.</div>
+  </div>
+</div>
+
+<div id="gameover" class="screen hidden">
+  <div class="menu-inner">
+    <h2 id="go-title">DU DOG</h2>
+    <div id="go-text"></div>
+    <button id="btn-restart">NYTT SPEL</button>
+    <button id="btn-load" class="hidden">LADDA SENASTE SPARNING</button>
+  </div>
+</div>
+
+<div id="fade"></div>
+<script src="../../shared/eoj.js" data-optional></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
