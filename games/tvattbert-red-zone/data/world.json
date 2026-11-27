@@ -1,0 +1,23 @@
+{
+  "source": "gothenburg-4000x4000m.stl",
+  "generated": "2026-11-27T13:22:37.504Z",
+  "worldSize": 4000,
+  "half": 2000,
+  "scaleMetersPerMm": 22.22222222222222,
+  "modelMm": 180,
+  "waterLevelMm": 2.091703176498413,
+  "gridMeters": 2,
+  "terrainVerts": 2001,
+  "classCells": 2000,
+  "buildings": 3332,
+  "triangles": 275768,
+  "patches": 4695,
+  "classes": {
+    "0": "urban",
+    "1": "lawn",
+    "2": "park/forest",
+    "3": "water",
+    "4": "building"
+  },
+  "coordinateSystem": "X east, Z south, Y up; origin = tile centre; metres"
+}

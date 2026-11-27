@@ -1,0 +1,20 @@
+{
+  "name": "tvattbert-red-zone",
+  "version": "1.0.0",
+  "description": "TVÄTTBERT: RED ZONE – FPS-överlevnadsspel i ett zombiedrabbat Göteborg (STL-baserad värld)",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build-world": "node tools/build-world.mjs",
+    "start": "node tools/serve.mjs 8080",
+    "test": "node tests/run-all.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "type": "module"
+}
