@@ -246,6 +246,7 @@
     'the-legend-of-andorra': 'andorra', skyward: 'skyward', 'stunt-rider-3d': 'stunt', 'open-world-sweden': 'sweden',
     'Ski-to-death-3d': 'ski', matchdag: 'matchdag', 'smita-fran-ledet': 'smita', 'teacher-meltdown': 'teacher',
     'impossible-rooms-3d': 'rooms', 'world-domination': 'world', 'chicago-bois': 'chicago',
+    'tvattbert-red-zone': 'tvattbert',
   };
   function gameId() {
     const parts = location.pathname.split('/');
